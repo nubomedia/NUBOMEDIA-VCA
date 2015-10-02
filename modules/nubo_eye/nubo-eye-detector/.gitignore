@@ -1,0 +1,11 @@
+build/
+debian/nubo_eye_detector/
+debian/nubo_eye_detector-dev/
+debian/nubo-eye-detector.debhelper.log
+debian/nubo-eye-detector-dev.debhelper.log
+debian/nubo-eye-detector-dev.substvars
+debian/nubo-eye-detector.postinst.debhelper
+debian/nubo-eye-detector.postrm.debhelper
+debian/nubo-eye-detector.substvars
+debian/tmp/
+obj-x86_64-linux-gnu/
