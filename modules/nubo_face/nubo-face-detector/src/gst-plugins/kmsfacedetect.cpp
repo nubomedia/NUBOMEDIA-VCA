@@ -228,12 +228,12 @@ kms_face_detect_set_property (GObject *object, guint property_id,
   memset (buffer,0,256);
 
   KMS_FACE_DETECT_LOCK (face_detect);
-  f=fopen("/tmp/face_properties.txt","a+");
+
   switch (property_id) {
 
   case PROP_VIEW_FACES:
     face_detect->priv->show_faces =  g_value_get_int (value);
-    fprintf(f,"Changing fps..view_faces: %d \n",face_detect->priv->show_faces);
+
     break;
 
   case PROP_DETECT_BY_EVENT:
@@ -501,11 +501,7 @@ kms_face_detect_transform_frame_ip (GstVideoFilter *filter,
   unsigned long long time_start= (((float)start.tv_sec * 1000.0) + (float(start.tv_usec)/1000.0));
   unsigned long long time_end=  (((float)end.tv_sec * 1000.0) + (float(end.tv_usec)/1000.0));
   unsigned long long total_time = time_end - time_start;
-
-  FILE *f = fopen("/tmp/face_detector.log","a+");
-  fprintf(f,"Iteration time %llu \n",total_time);
-  fclose(f);
-  
+    
   return GST_FLOW_OK;
 }
 
