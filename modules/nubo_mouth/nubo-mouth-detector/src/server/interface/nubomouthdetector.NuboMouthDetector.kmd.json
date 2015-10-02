@@ -1,0 +1,88 @@
+{
+    "remoteClasses": [
+	{
+	    "name": "NuboMouthDetector",
+	    "extends": "Filter",
+	    "doc": "NuboMouthDetector interface. Documentation about the module",
+	    "constructor": {
+		"doc": "Create an element",
+		"params": [
+		    {
+			"name": "mediaPipeline",
+			"doc": "the parent :rom:cls:`MediaPipeline`",
+			"type": "MediaPipeline",
+			"final": true
+		    }
+		]
+	    },
+	    "methods": [
+		{
+		    "name": "showMouths",
+		    "doc" : "Show or Hide the mouts in the video stream",
+		    "params": [
+			{
+			    "name": "viewMouths",
+			    "doc": "Determines wheter the detected mouths will be displayed or not",
+			    "type": "int"
+			}
+		    ]
+		},
+		{
+		    "name": "detectByEvent",
+		    "doc" : "To indicate  the algorithm if process all the images or only when it receives an event",
+		    "params": [
+			{
+			    "name": "event",
+			    "doc": "0 (default) => process all the frames without constraints; 1 => process only when we receive a specific event such as face detection",
+			    "type": "int"
+			}	  
+     		    ]
+		},
+		{
+		    "name": "sendMetaData",
+		    "doc" : "The mouths  detected (x,y,width,height) are sent as metadata ",
+		    "params": [
+			{
+			    "name": "metaData",
+			    "doc": "0 (default) => metadata are not sent; 1 => metadata are sent",
+			    "type": "int"
+			}	  
+     		    ]
+		}, 
+		{
+		    "name": "multiScaleFactor",
+		    "doc": "Specify how much the image size is reduced at each haar image ",
+		    "params": [
+			{
+			    "name":"scaleFactor", 
+			    "doc":"5-50 (25 default)",
+			    "type": "int"
+			}
+		    ]
+		},
+		{
+		    "name": "processXevery4Frames",
+		    "doc": "process x frames every 4 frames",
+		    "params": [
+			{
+			    "name":"xper4", 
+			    "doc":"1,2,3,4 (default) => process x frames every 4 frames",
+			    "type": "int"
+			}
+		    ]
+		},
+		{
+		    "name": "widthToProcess",
+		    "doc": "this will be the width of the image that the algorithm is going to process to detect mouths",
+		    "params": [
+			{
+			    "name":"width", 
+			    "doc":"160,320 (default),480,640",
+			    "type": "int"
+			}
+		    ]
+		}
+	    ]
+	}
+    ]
+}
