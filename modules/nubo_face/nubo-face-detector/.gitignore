@@ -1,0 +1,11 @@
+build/
+debian/nubo_face_detector/
+debian/nubo_face_detector/
+debian/nubo-face-detector.debhelper.log
+debian/nubo-face-detector-dev.debhelper.log
+debian/nubo-face-detector-dev.substvars
+debian/nubo-face-detector.postinst.debhelper
+debian/nubo-face-detector.postrm.debhelper
+debian/nubo-face-detector.substvars
+debian/tmp/
+obj-x86_64-linux-gnu/

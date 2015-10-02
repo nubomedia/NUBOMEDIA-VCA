@@ -1,0 +1,26 @@
+Source: nubo-face-detector
+Section: utils
+Priority: optional
+Maintainer: Maintainer Name
+Build-Depends: debhelper (>= 8.0.0),
+ cmake,
+ pkg-config,
+ kms-core-6.0-dev,
+ kms-elements-6.0-dev,
+ kms-filters-6.0-dev,
+ libopencv-dev
+Standards-Version: 3.9.4
+
+Package: nubo-face-detector
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends},
+Description: package description
+
+Package: nubo-face-detector-dev
+Architecture: any
+Depends: nubo-face-detector (= ${binary:Version}),
+  kms-core-6.0-dev,
+  kms-elements-6.0-dev,
+  kms-filters-6.0-dev,
+  libopencv-dev
+Description: dev package description
