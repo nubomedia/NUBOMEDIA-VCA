@@ -1,0 +1,27 @@
+include_directories(
+  ${GSTREAMER_INCLUDE_DIRS}
+  ${GSTREAMER_VIDEO_INCLUDE_DIRS}
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${OPENCV_INCLUDE_DIRS}
+)
+
+set(NUBO_NOSE_DETECTOR_SOURCES
+  nubonosedetector.c
+  kmsnosedetect.cpp
+  kmsnosedetect.h
+)
+
+add_library(nubonosedetector MODULE ${NUBO_NOSE_DETECTOR_SOURCES})
+
+target_link_libraries(nubonosedetector
+  ${GSTREAMER_LIBRARIES}
+  ${GSTREAMER_VIDEO_LIBRARIES}
+  ${OPENCV_LIBRARIES}
+)
+
+install(
+  TARGETS nubonosedetector
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_GST_PLUGINS_DIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)

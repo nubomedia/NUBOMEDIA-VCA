@@ -1,0 +1,11 @@
+build/
+debian/nubo_nose_detector/
+debian/nubo_nose_detector/
+debian/nubo-nose-detector.debhelper.log
+debian/nubo-nose-detector-dev.debhelper.log
+debian/nubo-nose-detector-dev.substvars
+debian/nubo-nose-detector.postinst.debhelper
+debian/nubo-nose-detector.postrm.debhelper
+debian/nubo-nose-detector.substvars
+debian/tmp/
+obj-x86_64-linux-gnu/
