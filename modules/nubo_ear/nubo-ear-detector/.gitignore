@@ -1,0 +1,11 @@
+build/
+debian/nubo_ear_detector/
+debian/nubo_ear_detector-dev/
+debian/nubo-ear-detector.debhelper.log
+debian/nubo-ear-detector-dev.debhelper.log
+debian/nubo-ear-detector-dev.substvars
+debian/nubo-ear-detector.postinst.debhelper
+debian/nubo-ear-detector.postrm.debhelper
+debian/nubo-ear-detector.substvars
+debian/tmp/
+obj-x86_64-linux-gnu/

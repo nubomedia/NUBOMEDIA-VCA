@@ -1,0 +1,88 @@
+{
+    "remoteClasses": [
+	{
+	    "name": "NuboEarDetector",
+	    "extends": "Filter",
+	    "doc": "NuboEarDetector interface. Documentation about the module",
+	    "constructor": {
+		"doc": "Create an element",
+		"params": [
+		    {
+			"name": "mediaPipeline",
+			"doc": "the parent :rom:cls:`MediaPipeline`",
+			"type": "MediaPipeline",
+			"final": true
+		    }
+		]
+	    },
+	    "methods": [
+		{
+		    "name": "showEars",
+		    "doc" : "Show or Hide the ears in the video stream",
+		    "params": [
+			{
+			    "name": "viewEars",
+			    "doc": "Determines wheter the detected ears will be displayed or not",
+			    "type": "int"
+			}
+		    ]
+		},
+		{
+		    "name": "detectByEvent",
+		    "doc" : "To indicate  the algorithm if process all the images or only when it receives an specific event",
+		    "params": [
+			{
+			    "name": "event",
+			    "doc": "0 (default) => process all the frames without constraints; 1 => process only when we receive a specific event. (At the moment there are not any event to make this algorithm works. Therefore, this property should not be used at te moment",
+			    "type": "int"
+			}	  
+     		    ]
+		},
+		{
+		    "name": "sendMetaData",
+		    "doc" : "The ears and the profile faces detected (x,y,width,height) are sent as metadata ",
+		    "params": [
+			{
+			    "name": "metaData",
+			    "doc": "0 (default) => metadata are not sent; 1 => metadata are sent",
+			    "type": "int"
+			}	  
+     		    ]
+		},
+		{
+		    "name": "multiScaleFactor",
+		    "doc": "Specify how much the image size is reduced at each haar image ",
+		    "params": [
+			{
+			    "name":"scaleFactor", 
+			    "doc":"5-50 (25 default)",
+			    "type": "int"
+			}
+		    ]
+		},
+		{
+		    "name": "processXevery4Frames",
+		    "doc": "process x frames every 4 frames",
+		    "params": [
+			{
+			    "name":"xper4", 
+			    "doc":"1,2,3,4 (default) => process x frames every 4 frames",
+			    "type": "int"
+			}
+		    ]
+		},
+		{
+		    "name": "widthToProcess",
+		    "doc": "this will be the width of the image that the algorithm is going to process to detect ears",
+		    "params": [
+			{
+			    "name":"width", 
+			    "doc":"160,320 (default),480,640",
+			    "type": "int"
+			}
+		    ]
+		}
+	    ]
+	}
+    ]
+}
