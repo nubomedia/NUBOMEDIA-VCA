@@ -1,0 +1,11 @@
+build/
+debian/nubo_tracker_detector/
+debian/nubo_tracker_detector-dev/
+debian/nubo-tracker-detector.debhelper.log
+debian/nubo-tracker-detector-dev.debhelper.log
+debian/nubo-tracker-detector-dev.substvars
+debian/nubo-tracker-detector.postinst.debhelper
+debian/nubo-tracker-detector.postrm.debhelper
+debian/nubo-tracker-detector.substvars
+debian/tmp/
+obj-x86_64-linux-gnu/

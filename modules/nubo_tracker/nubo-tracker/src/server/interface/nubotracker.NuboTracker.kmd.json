@@ -1,0 +1,77 @@
+{
+    "remoteClasses": [
+	{
+	    "name": "NuboTracker",
+	    "extends": "Filter",
+	    "doc": "NuboTracker interface. Documentation about the module",
+	    "constructor": {
+		"doc": "Create an element",
+		"params": [
+		    {
+			"name": "mediaPipeline",
+			"doc": "the parent :rom:cls:`MediaPipeline`",
+			"type": "MediaPipeline",
+			"final": true
+		    }
+		]
+	    },
+	    "methods": [
+		{		    
+		    "name": "setThreshold",
+		    "doc" : "Minimum diferece among pixels  to detect motion",
+		    "params":[
+			{
+			    "name": "threshold",
+			    "doc": "Set the threshold",
+			    "type": "int"
+			}
+		    ]
+		}, 
+		{
+		    "name": "setMinArea",
+		    "doc": "Set up the Minimun area of the object",
+		    "params": [
+			{
+			    "name": "minArea",
+			    "doc": "the minimum area of the object",
+			    "type": "int"
+			}
+		    ]
+		},
+		{
+		    "name": "setMaxArea",
+		    "doc": "Set up the Maximum area of the object",
+		    "params": [
+			{
+			    "name": "maxArea",
+			    "doc": "the maximum area of the object",
+			    "type": "float"
+			}
+		    ]
+		},
+		{
+		    "name": "setDistance",
+		    "doc": "Set up the Maximum area of the object",
+		    "params": [
+			{
+			    "name": "distance",
+			    "doc": "the maximum area of the object",
+			    "type": "int"
+			}
+		    ]
+		},
+		{
+		    "name": "setVisualMode",
+		    "doc": "Set up the visual Mode of the output video",
+		    "params": [
+			{
+			    "name": "mode",
+			    "doc": "0 => normal video; 1=>normal video + object trackerd; 2=> diff images + object tracked; 3=> motion histagram + object tracked",
+			    "type": "int"
+			}
+		    ]
+		} 			
+	    ]
+	}
+    ]
+}

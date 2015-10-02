@@ -1,0 +1,27 @@
+include_directories(
+  ${GSTREAMER_INCLUDE_DIRS}
+  ${GSTREAMER_VIDEO_INCLUDE_DIRS}
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${OPENCV_INCLUDE_DIRS}
+)
+
+set(NUBO_TRACKER_SOURCES
+  nubotracker.c
+  gstnubotracker.cpp
+  gstnubotracker.h
+)
+
+add_library(nubotracker MODULE ${NUBO_TRACKER_SOURCES})
+
+target_link_libraries(nubotracker
+  ${GSTREAMER_LIBRARIES}
+  ${GSTREAMER_VIDEO_LIBRARIES}
+  ${OPENCV_LIBRARIES}
+)
+
+install(
+  TARGETS nubotracker
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+  LIBRARY DESTINATION ${CMAKE_INSTALL_GST_PLUGINS_DIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+)
