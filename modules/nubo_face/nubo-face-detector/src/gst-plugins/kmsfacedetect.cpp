@@ -223,7 +223,7 @@ kms_face_detect_set_property (GObject *object, guint property_id,
   //Changing values of the properties is a critical region because read/write
   //concurrently could produce race condition. For this reason, the following
   //code is protected with a mutex
-  FILE *f;
+
   char buffer[256];
   memset (buffer,0,256);
 
@@ -232,6 +232,7 @@ kms_face_detect_set_property (GObject *object, guint property_id,
   switch (property_id) {
 
   case PROP_VIEW_FACES:
+
     face_detect->priv->show_faces =  g_value_get_int (value);
 
     break;
@@ -246,24 +247,22 @@ kms_face_detect_set_property (GObject *object, guint property_id,
 
   case PROP_PROCESS_X_EVERY_4_FRAMES:
     face_detect->priv->process_x_every_4_frames = g_value_get_int(value);
-    fprintf(f,"Changing fps..value: %d \n",face_detect->priv->process_x_every_4_frames);
     break;
 
   case PROP_WIDTH_TO_PROCCESS:
     face_detect->priv->width_to_process = g_value_get_int(value);
-    fprintf(f,"Changing fps..width_to_process: %d \n",face_detect->priv->width_to_process);
     break;
 
   case PROP_MULTI_SCALE_FACTOR:
     face_detect->priv->scale_factor = g_value_get_int(value);
-    fprintf(f,"Changing fps..scale_factor: %d \n",face_detect->priv->scale_factor);
+
     break;
 
   default:
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
     break;
   }
-  fclose(f);
+
   KMS_FACE_DETECT_UNLOCK (face_detect);
 
 }

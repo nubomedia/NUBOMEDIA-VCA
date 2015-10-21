@@ -171,7 +171,6 @@
 	   id="stop" href="#" class="btn btn-danger"
 	   onclick="stop(); return false;">
 	  <span class="glyphicon glyphicon-stop"></span> Stop</a>
-	
       </div >
       
       <div class="row" align="center">
@@ -187,32 +186,9 @@
 	</div>
       </div>
 
-      <!-- <div class="row" align="center">
-      	<div class="col-md-5"  style=" width:500px;   align:center" >
-	  <table>
-	    <tr> <td height="300px"></td></tr>
-	    <tr> <td width="50px" vertical-align="center" align="center">
-		
-		<input id="activate_stats" type="checkbox"  required name="terms" onchange="activate_stats()"> 
-		
-		<a id="get Stats" href="#" class="btn btn-info"
-		   onclick="get_stats(); return false;"> Statistics </a>
-	    </td> </tr> 
-	  </table>
-	</div>
-      </div> -->
-      
-      <div class="row">
-	<div class="col-md-12">
-	  <label class="control-label" for="console">Console</label><br>
-	  <br>
-	  <div id="console" class="democonsole">
-	    <ul></ul>
-	  </div> 
-	</div>
+      <div class="row" align="left">
+	&nbsp; &nbsp; <input id="videoE2Elatency" type="checkbox"  required name="terms" onchange="show_latency()"><span id="testVideoE2Elatency">  VideoE2ELatency (ms): </span>  
       </div>
-
-    </div>
 
 
     <footer>

@@ -14,6 +14,7 @@
  */
 package org.kurento.nubomedia.nuboFaceProfileJava;
 
+
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,6 +37,8 @@ import org.kurento.module.nubofacedetector.*;
 import org.kurento.module.nubomouthdetector.*;
 import org.kurento.module.nubonosedetector.*;
 import org.kurento.module.nuboeyedetector.*;
+import org.kurento.client.EndpointStats;
+
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -80,63 +83,56 @@ public class NuboFaceProfileJavaHandler extends TextWebSocketHandler {
 		JsonObject jsonMessage = gson.fromJson(message.getPayload(),
 				JsonObject.class);
 
+		
 		log.debug("Incoming message: {}", jsonMessage);
-		System.out.println(" ");
-		System.out.println(" ");
-		System.out.println(" ");
+		
+		
 		switch (jsonMessage.get("id").getAsString()) {
-		case "start":
-			System.out.println("Start Received");
+		case "start":		
 			start(session, jsonMessage);
-			break;		
-		case "show_faces":
-			System.out.println("Show faces received");
+			break;	
+			
+		case "show_faces":		
 			setViewFaces(session,jsonMessage);
 			break;
 
-		case "show_mouths":
-			System.out.println("Show mouths received");
+		case "show_mouths":		
 			setViewMouths(session,jsonMessage);
 			break;
 			
 		case "show_noses":
-			System.out.println("Show noses received");
 			setViewNoses(session,jsonMessage);
 			break;
 			
-		case "show_eyes":
-			System.out.println("Show eyes received");	
+		case "show_eyes":			
 			setViewEyes(session,jsonMessage);
 			break;
+
 		case "face_res":
-			System.out.println("Face Resolution received");	
 			changeResolution(FACE_FILTER,session,jsonMessage);
-			System.out.println("Face Resolution received");
 			break;
+			
 		case "mouth_res":
-			System.out.println("Mouth resolution received");
 			changeResolution(this.MOUTH_FILTER,session,jsonMessage);
 			break;
-		case "nose_res":
-			System.out.println("Nose resolution received");
+			
+		case "nose_res":			
 			changeResolution(this.NOSE_FILTER,session,jsonMessage);
 			break;
-		case "eye_res":
-			System.out.println("Eye resolution received");
+			
+		case "eye_res":			
 			changeResolution(this.EYE_FILTER,session,jsonMessage);
 			break;
-		case "fps":
-			System.out.println("FPs resolution received");
+			
+		case "fps":			
 			setFps(session,jsonMessage);
 			break;
-		case "scale_factor":
-			System.out.println("Scale Factor received");
+			
+		case "scale_factor":			
 			setScaleFactor(session,jsonMessage);
-			break;		
-		case "activate_stats":
-			activateStats(session);
 			break;			
-		case "get_stats":
+			
+		case "get_stats":			
 			getStats(session);
 			break;
 		case "stop": {
@@ -174,6 +170,8 @@ public class NuboFaceProfileJavaHandler extends TextWebSocketHandler {
 			// Media Logic (Media Pipeline and Elements)
 			UserSession user = new UserSession();
 			pipeline = kurento.createMediaPipeline();
+			pipeline.setLatencyStats(true);
+			
 			user.setMediaPipeline(pipeline);
 			webRtcEndpoint = new WebRtcEndpoint.Builder(pipeline)
 					.build();
@@ -200,7 +198,9 @@ public class NuboFaceProfileJavaHandler extends TextWebSocketHandler {
 						}
 					});
 
-			pipeline.setLatencyStats(true); 			
+			
+						
+			
 			face = new NuboFaceDetector.Builder(pipeline).build();
 			face.sendMetaData(1);
 			face.detectByEvent(0);
@@ -308,13 +308,11 @@ public class NuboFaceProfileJavaHandler extends TextWebSocketHandler {
 	{
 		int val;
 		try{
-			System.out.println("In change resolution");
+			
 			val = jsonObject.get("val").getAsInt();
-			System.out.println("in Change Resolution filter type " + filterType + " value " );
-			
+						
 			if (filterType == this.EYE_FILTER && null != eye)
-				eye.widthToProcess(val);
-			
+				eye.widthToProcess(val);			
 			else if (filterType == this.MOUTH_FILTER && null != mouth)
 				mouth.widthToProcess(val);
 			else if (filterType == this.NOSE_FILTER && null != nose )
@@ -324,8 +322,7 @@ public class NuboFaceProfileJavaHandler extends TextWebSocketHandler {
 			else if (filterType == this.EYE_FILTER && null != eye )
 				eye.widthToProcess(val);
 			
-		} catch (Throwable t){
-			System.out.println("Error Change Resolution ");
+		} catch (Throwable t){			
 			sendError(session,t.getMessage());
 		}
 	}
@@ -364,50 +361,35 @@ public class NuboFaceProfileJavaHandler extends TextWebSocketHandler {
 		}
 	}
 	
-	private void activateStats(WebSocketSession session)
-    {
-    	try {
-    		pipeline.setLatencyStats(true);    		
-    		
-    	} catch (Throwable t){
-    		sendError(session,t.getMessage());
-    		
-    	}
-    }
-    
     private void getStats(WebSocketSession session)
     {
-    	Map<String,Stats> face_stats;
-    	Map<String,Stats> mouth_stats;
-    	Map<String,Stats> nose_stats;
-    	Map<String,Stats> eye_stats;
-    	Map<String,Stats> wr_stats;
-    	    
-    	try{
-    		face_stats  = face.getStats();
-    		mouth_stats = mouth.getStats();
-    		nose_stats  = nose.getStats();
-    		eye_stats   = eye.getStats();
-    		wr_stats   = webRtcEndpoint.getStats();
-    		/***********************+getStats("Video", callback);*********************************/
-    		Map.Entry<String,Stats>f_st = face_stats.entrySet().iterator().next();
-    		Map.Entry<String,Stats>m_st = mouth_stats.entrySet().iterator().next();
-    		Map.Entry<String,Stats>n_st = nose_stats.entrySet().iterator().next();
-    		Map.Entry<String,Stats>e_st = eye_stats.entrySet().iterator().next();
-    		Map.Entry<String,Stats>wr_st = wr_stats.entrySet().iterator().next();
+    	
+    	try {
+    		Map<String,Stats> wr_stats= webRtcEndpoint.getStats();
+    	
+    		for (Stats s :  wr_stats.values()) {
     		
-    		double f_time= f_st.getValue().getTimestamp() - m_st.getValue().getTimestamp();
-    		double m_time= m_st.getValue().getTimestamp() - n_st.getValue().getTimestamp();
-    		double n_time= n_st.getValue().getTimestamp() - e_st.getValue().getTimestamp();
-    		double e_time= e_st.getValue().getTimestamp() - wr_st.getValue().getTimestamp();
-    		
-    		
-    		
-    	}catch (Throwable t){
-    		sendError(session,t.getMessage());
-    		
-    	}
+    			switch (s.getType()) {		
+    			case endpoint:
+    				EndpointStats end_stats= (EndpointStats) s;
+    				double e2eVideLatency= end_stats.getVideoE2ELatency() / 1000000;
+    				
+    				JsonObject response = new JsonObject();
+    				response.addProperty("id", "videoE2Elatency");
+    				response.addProperty("message", e2eVideLatency);				
+    				session.sendMessage(new TextMessage(response.toString()));				
+    				break;
+	
+    			default:	
+    				break;
+    			}				
+    		}
+    	} catch (IOException e) {
+			log.error("Exception sending message", e);
+		}
+    	
     }
+    
 	private void sendError(WebSocketSession session, String message) {
 		try {
 			JsonObject response = new JsonObject();

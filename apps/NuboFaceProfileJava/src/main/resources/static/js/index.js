@@ -18,6 +18,7 @@ var videoInput;
 var videoOutput;
 var webRtcPeer;
 var state = null;
+var timerId=null;
 
 const I_CAN_START = 0;
 const I_CAN_STOP = 1;
@@ -43,7 +44,9 @@ ws.onmessage = function(message) {
 	case 'startResponse':
 		startResponse(parsedMessage);
 		break;
-	
+	case 'videoE2Elatency':
+	    document.getElementById('testVideoE2Elatency').innerHTML= "  VideoE2ELatency (ms): " + parsedMessage.message;
+	    break;
 	case 'iceCandidate':
 	    webRtcPeer.addIceCandidate(parsedMessage.candidate, function (error) {
         if (!error) return;
@@ -242,21 +245,15 @@ function show_eyes() {
 	
 }
 
-
-/*function activate_stats()
+function show_latency()
 {
-    var stats = 0;
-    if ( document.getElementById('activate_stats').checked) {
-	stats=1;
+    if ( document.getElementById('videoE2Elatency').checked) {
+	timerId = setInterval(get_stats,1000);
     }
-    
-    var message = {
-	id : 'activate_stats',
-	val: stats
-    };
-    
-    sendMessage(message);
-    
+    else {
+	document.getElementById('testVideoE2Elatency').innerHTML = "  VideoE2ELatency (ms): ";
+	clearInterval(timerId);
+    }
 }
 
 function get_stats()
@@ -268,7 +265,7 @@ function get_stats()
 
     sendMessage(message);
 }
-*/
+
 
 function send_param(mid,value) {
     var message = {

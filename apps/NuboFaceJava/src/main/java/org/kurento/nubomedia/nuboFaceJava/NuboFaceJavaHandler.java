@@ -15,6 +15,7 @@
 package org.kurento.nubomedia.nuboFaceJava;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.kurento.client.EventListener;
@@ -31,6 +32,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+import org.kurento.client.EndpointStats;
+import org.kurento.client.Stats;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -52,8 +55,8 @@ public class NuboFaceJavaHandler extends TextWebSocketHandler {
     @Autowired
     private KurentoClient kurento;
 
-    private WebRtcEndpoint webRtcEndpoint = null;
-    MediaPipeline pipeline = null;
+    private MediaPipeline pipeline = null;
+    private WebRtcEndpoint webRtcEndpoint = null;   
     private NuboFaceDetector face = null;
     private int visualizeFace = -1;
 
@@ -64,7 +67,8 @@ public class NuboFaceJavaHandler extends TextWebSocketHandler {
 					       JsonObject.class);
 
 	log.debug("Incoming message: {}", jsonMessage);
-
+	
+	
 	switch (jsonMessage.get("id").getAsString()) {
 	case "start":
 	    start(session, jsonMessage);
@@ -85,6 +89,9 @@ public class NuboFaceJavaHandler extends TextWebSocketHandler {
 	    setWidthToProcess(session,jsonMessage);
 	    break;
 	    
+	case "get_stats":			
+		getStats(session);
+		break;
 		
 	case "stop": {
 	    UserSession user = users.remove(session.getId());
@@ -119,7 +126,8 @@ public class NuboFaceJavaHandler extends TextWebSocketHandler {
 	try {
 	    // Media Logic (Media Pipeline and Elements)
 	    UserSession user = new UserSession();
-	    MediaPipeline pipeline = kurento.createMediaPipeline();
+	    pipeline = kurento.createMediaPipeline();
+	    pipeline.setLatencyStats(true);
 	    user.setMediaPipeline(pipeline);
 	    webRtcEndpoint = new WebRtcEndpoint.Builder(pipeline)
 		.build();
@@ -175,10 +183,14 @@ public class NuboFaceJavaHandler extends TextWebSocketHandler {
     {
 
 	try{
+				
 	    visualizeFace = jsonObject.get("val").getAsInt();
+	    
 	    if (null != face)
-		face.showFaces(visualizeFace);
-
+	    	face.showFaces(visualizeFace);
+	    
+	    
+	    
 	} catch (Throwable t){
 	    sendError(session,t.getMessage());
 	}
@@ -190,11 +202,8 @@ public class NuboFaceJavaHandler extends TextWebSocketHandler {
 	try{
 	    int scale = jsonObject.get("val").getAsInt();
 	    
-	    if (null != face)
-		{
-		    log.debug("Sending setscaleFactor...." + scale);
-		    face.multiScaleFactor(scale);
-		}
+	    if (null != face)		
+		    face.multiScaleFactor(scale);		
 	    
 	} catch (Throwable t){		
 	    sendError(session,t.getMessage());
@@ -233,7 +242,37 @@ public class NuboFaceJavaHandler extends TextWebSocketHandler {
 	} catch (Throwable t){
 	    sendError(session,t.getMessage());
 	}
-    } 
+    }
+    
+
+    private void getStats(WebSocketSession session)
+    {
+    	
+    	try {
+    		Map<String,Stats> wr_stats= webRtcEndpoint.getStats();
+    	
+    		for (Stats s :  wr_stats.values()) {
+    		
+    			switch (s.getType()) {		
+    			case endpoint:
+    				EndpointStats end_stats= (EndpointStats) s;
+    				double e2eVideLatency= end_stats.getVideoE2ELatency() / 1000000;
+    				
+    				JsonObject response = new JsonObject();
+    				response.addProperty("id", "videoE2Elatency");
+    				response.addProperty("message", e2eVideLatency);				
+    				session.sendMessage(new TextMessage(response.toString()));				
+    				break;
+	
+    			default:	
+    				break;
+    			}				
+    		}
+    	} catch (IOException e) {
+			log.error("Exception sending message", e);
+		}
+    	
+    }
    
     private void sendError(WebSocketSession session, String message) {
 	try {

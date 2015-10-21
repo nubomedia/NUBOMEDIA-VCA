@@ -12,9 +12,11 @@
  * Lesser General Public License for more details.
  *
  */
-package org.kurento.nubomedia.nuboTrackerJava;
+package org.kurento.nubomedia.nuboTrackerJava; 
+
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.kurento.client.EventListener;
@@ -31,6 +33,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+import org.kurento.client.EndpointStats;
+import org.kurento.client.Stats;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -52,7 +56,8 @@ public class NuboTrackerJavaHandler extends TextWebSocketHandler {
 
 	@Autowired
 	private KurentoClient kurento;
-
+	private MediaPipeline pipeline = null;
+	private WebRtcEndpoint webRtcEndpoint = null;
 	private NuboTracker tracker= null;	
 
 	@Override
@@ -86,7 +91,13 @@ public class NuboTrackerJavaHandler extends TextWebSocketHandler {
 			
 		case "visual_mode":
 			setVisualMode(session,jsonMessage);
-			break;		case "stop": {
+			break;
+			
+		case "get_stats":			
+			getStats(session);
+			break;
+	
+		case "stop": {
 			UserSession user = users.remove(session.getId());
 			if (user != null) {
 				user.release();
@@ -119,9 +130,10 @@ public class NuboTrackerJavaHandler extends TextWebSocketHandler {
 		try {
 			// Media Logic (Media Pipeline and Elements)
 			UserSession user = new UserSession();
-			MediaPipeline pipeline = kurento.createMediaPipeline();
+			pipeline = kurento.createMediaPipeline();
+			pipeline.setLatencyStats(true);
 			user.setMediaPipeline(pipeline);
-			WebRtcEndpoint webRtcEndpoint = new WebRtcEndpoint.Builder(pipeline)
+			webRtcEndpoint = new WebRtcEndpoint.Builder(pipeline)
 					.build();
 			user.setWebRtcEndpoint(webRtcEndpoint);
 			users.put(session.getId(), user);
@@ -151,7 +163,7 @@ public class NuboTrackerJavaHandler extends TextWebSocketHandler {
 			
 			webRtcEndpoint.connect(tracker);
 			tracker.connect(webRtcEndpoint);
-
+			
 			// SDP negotiation (offer and answer)
 			String sdpOffer = jsonMessage.get("sdpOffer").getAsString();
 			String sdpAnswer = webRtcEndpoint.processOffer(sdpOffer);
@@ -241,6 +253,33 @@ public class NuboTrackerJavaHandler extends TextWebSocketHandler {
 		}
 	}
 	
+
+    private void getStats(WebSocketSession session)
+    {    	
+    	try {
+    		Map<String,Stats> wr_stats= webRtcEndpoint.getStats();
+    	
+    		for (Stats s :  wr_stats.values()) {
+    		
+    			switch (s.getType()) {		
+    			case endpoint:
+    				EndpointStats end_stats= (EndpointStats) s;
+    				double e2eVideLatency= end_stats.getVideoE2ELatency() / 1000000;
+    				
+    				JsonObject response = new JsonObject();
+    				response.addProperty("id", "videoE2Elatency");
+    				response.addProperty("message", e2eVideLatency);				
+    				session.sendMessage(new TextMessage(response.toString()));				
+    				break;
+	
+    			default:	
+    				break;
+    			}				
+    		}
+    	} catch (IOException e) {
+			log.error("Exception sending message", e);
+		}   
+    }
 
 	private void sendError(WebSocketSession session, String message) {
 		try {
