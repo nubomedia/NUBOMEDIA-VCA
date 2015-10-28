@@ -8,14 +8,13 @@
 		<version>6.1.0</version>
 	</parent>
 
-	<groupId>org.kurento.vca</groupId>
+	<groupId>com.vtools.vca</groupId>
 	<artifactId>nubomedia-vca</artifactId>
 	<packaging>pom</packaging>
 
 	<name>NuboMedia VCA Java demos</name>
-	<description>Sample projects</description>
 
-	<url>http://www.kurento.org/docs/${project.version}</url>
+	<url>http://nubomedia-vca.readthedocs.org/en/latest/</url>
 
 	<licenses>
 		<license>
@@ -26,29 +25,26 @@
 	</licenses>
 
 	<organization>
-		<name>Kurento</name>
-		<url>http://www.kurento.org</url>
+		<name>Visual Tools</name>
+		<url>http://www.visual-tools.com</url>
 	</organization>
 
 	<scm>
-		<url>https://github.com/Kurento/kurento-tutorial-java</url>
-		<connection>scm:git:https://github.com/Kurento/kurento-tutorial-java</connection>
-		<developerConnection>scm:git://git@github.com:Kurento/kurento-tutorial-java</developerConnection>
-		<tag>develop</tag>
+		<url>https://github.com/VictorHidalgoVT/NUBOMEDIA-VCA</url>
+		<connection>scm:git:https://github.com/VictorHidalgoVT/NUBOMEDIA-VCA</connection>
+		<developerConnection>scm:git://git@github.com:VictorHidalgoVT/NUBOMEDIA-VCA</developerConnection>
+		<tag>master</tag>
 	</scm>
 
 	<developers>
 		<developer>
-			<id>kurento.org</id>
-			<name>-kurento.org Community</name>
-			<organization>Kurento.org</organization>
-			<organizationUrl>http://www.kurento.org</organizationUrl>
+			<id>visual-tools.com</id>
+			<name>-Nubomedia Project</name>
+			<organization>visual-tools.com</organization>
+			<organizationUrl>http://www.visual-tools.com</organizationUrl>
 		</developer>
 	</developers>
 
-	<properties>
-		<version.kurento-platedetector>${version.kurento-java}</version.kurento-platedetector>
-	</properties>
 
 	<modules>
 		<module>NuboFaceJava</module>

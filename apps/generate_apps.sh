@@ -14,7 +14,6 @@ cd NuboFaceJava/; sh generate_zip.sh; cd ../
 #Face Profile port  =>  8105
 cd NuboFaceProfileJava/; sh generate_zip.sh; cd ../
 
-
 #Mouth port =>  8103
 cd NuboMouthJava/; sh generate_zip.sh; cd ../
 

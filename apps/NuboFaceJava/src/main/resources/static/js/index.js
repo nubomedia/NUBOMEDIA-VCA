@@ -199,32 +199,6 @@ function show_faces() {
 	
 }
 
-function activate_stats()
-{
-    var stats = 0;
-    if ( document.getElementById('activate_stats').checked) {
-	stats=1;
-    }
-    
-    var message = {
-	id : 'activate_stats',
-	val: stats
-    };
-    
-    sendMessage(message);
-    
-}
-
-function get_stats()
-{
-    var message = {
-	id : 'get_stats',
-	val: ''
-    };
-
-    sendMessage(message);
-}
-
 function set_fps(value) {
     
     var message = {

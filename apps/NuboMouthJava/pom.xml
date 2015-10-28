@@ -2,7 +2,7 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<parent>
-		<groupId>org.kurento.vca</groupId>
+		<groupId>com.vtools.vca</groupId>
 		<artifactId>nubomedia-vca</artifactId>
 		<version>6.1.0</version>
 	</parent>
@@ -22,30 +22,30 @@
 	</licenses>
 
 	<organization>
-		<name>Kurento</name>
-		<url>http://www.kurento.org</url>
+		<name>Visual Tools</name>
+		<url>http://www.visual-tools.com</url>
 	</organization>
 
 	<scm>
-		<url>https://github.com/Kurento/kurento-tutorial-java</url>
-		<connection>scm:git:https://github.com/Kurento/kurento-tutorial-java</connection>
-		<developerConnection>scm:git://git@github.com:Kurento/kurento-tutorial-java</developerConnection>
-		<tag>develop</tag>
+		<url>https://github.com/VictorHidalgoVT/NUBOMEDIA-VCA</url>
+		<connection>scm:git:https://github.com/VictorHidalgoVT/NUBOMEDIA-VCA</connection>
+		<developerConnection>scm:git://git@github.com:VictorHidalgoVT/NUBOMEDIA-VCA</developerConnection>
+		<tag>master</tag>
 	</scm>
 
 	<developers>
 		<developer>
-			<id>kurento.org</id>
-			<name>-kurento.org Community</name>
-			<organization>Kurento.org</organization>
-			<organizationUrl>http://www.kurento.org</organizationUrl>
+			<id>visual-tools.com</id>
+			<name>-Nubomedia Project</name>
+			<organization>visual-tools.com</organization>
+			<organizationUrl>http://www.visual-tools.com</organizationUrl>
 		</developer>
 	</developers>
 
 	<properties>		
-		<!-- Main class -->
-		<!-- <demo.port>8103</demo.port> -->
-		<start-class>org.kurento.nubomedia.nuboMouthJava.NuboMouthJavaApp</start-class>
+	  <!-- Main class -->
+	  <!-- <demo.port>8103</demo.port> -->
+	  <start-class>com.vtools.nubomedia.nuboMouthJava.NuboMouthJavaApp</start-class>
 
 	</properties>
 
