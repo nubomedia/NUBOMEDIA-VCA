@@ -28,9 +28,11 @@ cp modules/nubo_face/*deb $DEB_PACK
 #mkdir -p $JS_API/nuboeardetector/js/   $JS_API/nuboeyedetector/js/  $JS_API/nubofacedetector/js/
 #mkdir -p $JS_API/nubomouthdetector/js/ $JS_API/nubonosedetector/js/ $JS_API/nubotracker/js/
 
+mkdir -p $JS_API/nubofacedetector/js/
+
 #cp modules/nubo_ear/nubo-ear-detector/build/js/dist/*    $JS_API/nuboeardetector/js/
 #cp modules/nubo_eye/nubo-eye-detector/build/js/dist/*    $JS_API/nuboeyedetector/js/
-#cp modules/nubo_face/nubo-face-detector/build/js/dist/*  $JS_API/nubofacedetector/js/
+cp modules/nubo_face/nubo-face-detector/build/js/dist/*  $JS_API/nubofacedetector/js/
 #cp modules/nubo_mouth/nubo-mouth-detector/build/js/dist/*  $JS_API/nuboeardetector/js/
 #cp modules/nubo_nose/nubo-nose-detector/build/js/dist/*  $JS_API/nubonosedetector/js/
 #cp modules/nubo_tracker/nubo-tracker/build/js/dist/*     $JS_API/nubotracker/js/
