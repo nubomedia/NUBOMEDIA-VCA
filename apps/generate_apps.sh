@@ -1,5 +1,6 @@
 #!/bin/sh
 
+MVN_CENTRAL=mvn_central
 mkdir -p ../output
 
 # Ear port => 8104
@@ -23,3 +24,9 @@ cd NuboNoseJava/; sh generate_zip.sh; cd ../
 #Tracker port =>  8107
 cd NuboTrackerJava/; sh generate_zip.sh; cd ../
 
+if [ "$1" = "maven-central" ]; then
+    mkdir -p $MVN_CENTRAL
+    rm -rf $MVN_CENTRAL/*
+    cp pom.xml $MVN_CENTRAL/
+    cd $MVN_CENTRAL/; gpg2 -ab $pom.xml
+fi
