@@ -7,6 +7,7 @@ if [ "$1" = "js" ]; then
 
 else 
 
-    cd build; cmake ../; sleep 2 ; make; sleep 2 ; sudo make install;  cmake ../  -DGENERATE_JAVA_CLIENT_PROJECT=TRUE; sleep 2; make java_install
+    cd build; cmake ../; sleep 2 ; make; sleep 2 ; sudo make install;  cmake ../  -DGENERATE_JAVA_CLIENT_PROJECT=TRUE; sleep 2; 
+    sed 's/org.kurento.module/com.visual-tools.nubomedia/g' ./java/pom.xml > ./java/pom_ok.xml; mv ./java/pom_ok.xml ./java/pom.xml; make java_install
     sudo debuild -us -uc
 fi

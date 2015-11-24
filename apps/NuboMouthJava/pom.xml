@@ -2,8 +2,8 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<parent>
-		<groupId>com.vtools.vca</groupId>
-		<artifactId>nubomedia-vca</artifactId>
+		<groupId>com.visual-tools.nubomedia</groupId>
+		<artifactId>nubomedia-vca-parent-pom</artifactId>
 		<version>6.1.0</version>
 	</parent>
 
@@ -45,7 +45,7 @@
 	<properties>		
 	  <!-- Main class -->
 	  <!-- <demo.port>8103</demo.port> -->
-	  <start-class>com.vtools.nubomedia.nuboMouthJava.NuboMouthJavaApp</start-class>
+	  <start-class>com.visual_tools.nubomedia.nuboMouthJava.NuboMouthJavaApp</start-class>
 
 	</properties>
 
@@ -69,9 +69,9 @@
 			<artifactId>kurento-utils-js</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>org.kurento.module</groupId>
+			<groupId>com.visual-tools.nubomedia</groupId>
 			<artifactId>nubomouthdetector</artifactId>
-			<version>0.0.4-SNAPSHOT</version>
+			<version>0.0.5</version>
 		</dependency>
 	</dependencies>
 
