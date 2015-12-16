@@ -74,7 +74,8 @@
 	    <li><b>Fps:</b>With this paramteter we indicate the number of frames pers seconds.The more fps, the detection will be more robust but the computation will be worse </li>
 	    <li><b>Size To Process</b>With this paramteter we indicate the size of the image used to detect faces. Higher size, the detection will be more robust, but the computation time will be worse </li>
 	    <li><b>Scale Factor</b>The algorithm uses different images to detect faces. The following image to the original are gradually reducing its size. With this parameter we indicate such reduction between images. The smaller the reduction, the stronger the detection but the computation time will be worse </li>
-	    <li><b>Show faces</b>If you check the checkbox, you will see the faces detected on the remote stream</li>				
+	    <li><b>Show faces</b> If you check the checkbox, you will see the faces detected on the remote stream</li>
+	    <li><b>Euclidean distance</b> With this parameter the same face in two consecutives frames will have the same position (center of the face) if the distance between the corresponding centers of the faces is not higher than this value. The aim of this parameter is to delete the vibration produced by small changes in the center of the face. </li>
 	  </ul>
 	</div>
 	
@@ -82,8 +83,8 @@
       
       <div class="row" >			
 	<div class="col-md-5" style=" width:500px;  border: 2px solid;">
-	  <h4 style="text-align:center">Configuration</h4>																		
-	  <table  style="margin: 20px 10px 20px 10px">
+	  <h4 style="text-align:center">Configuration</h4>																	
+	  <table  style="margin: 20px 10px 0px 10px">
 	    <tr>
 	      <td align="left" width="300px"> <span >Fps</span> </td>
 	      <td align="left" width="200px">
@@ -126,8 +127,18 @@
 		<input id="show_faces" type="checkbox"  required name="terms" onchange="show_faces()"> 
 	      </td>	      
 	    </tr>
-	    
 	  </table>
+	
+	  <table style="margin: 5px 10px 20px 10px">
+	    <tr>
+	      <td align="left" width="250px" > <span > Euclidean distance  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span> <span id="euc_dis">8</span> </td>
+	      <td align="left" width="300px">
+		<input id="bar_distance"type="range" min="0" max="30" value="8" step="1" onchange="euclidean_dis(this.value)" /> 
+	      </td>											
+	    </tr>
+	    <tr></tr>
+	  </table>
+	  
 	</div>
 
 	<div class="col-md-5"  style=" width:500px;   align:center" >

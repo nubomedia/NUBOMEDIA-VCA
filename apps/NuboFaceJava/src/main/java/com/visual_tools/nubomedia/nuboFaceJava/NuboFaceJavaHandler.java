@@ -77,23 +77,21 @@ public class NuboFaceJavaHandler extends TextWebSocketHandler {
 	case "show_faces":	
 	    setVisualization(session,jsonMessage);
 	    break;	
-	case "scale_factor":
-	    log.debug("Case scale factor");
+	case "scale_factor":	    
 	    setScaleFactor(session,jsonMessage);
 	    break;
-	case "process_num_frames":
-	    log.debug("Case process num frames");
+	case "process_num_frames":	    
 	    setProcessNumberFrames(session,jsonMessage);
 	    break;
-	case "width_to_process":
-	    log.debug("Case width to process");
+	case "width_to_process":	    
 	    setWidthToProcess(session,jsonMessage);
-	    break;
-	    
+	    break;	    
 	case "get_stats":			
 		getStats(session);
 		break;
-		
+	case "euclidean_dis":
+		setEuclideanDistance(session,jsonMessage);
+		break;
 	case "stop": {
 	    UserSession user = users.remove(session.getId());
 	    if (user != null) {
@@ -235,8 +233,7 @@ public class NuboFaceJavaHandler extends TextWebSocketHandler {
 	    int width = jsonObject.get("val").getAsInt();
 	    
 	    if (null != face)
-		{
-		    log.debug("Sending width...." + width);
+		{		    
 		    face.widthToProcess(width);
 		}
 	    
@@ -245,6 +242,18 @@ public class NuboFaceJavaHandler extends TextWebSocketHandler {
 	}
     }
     
+    private void setEuclideanDistance(WebSocketSession session,JsonObject jsonObject)
+    {
+    	try{
+    		int euc_dis = jsonObject.get("val").getAsInt();
+    		
+    		if (null != face)
+    			face.euclideanDistance(euc_dis);
+    		
+    	}catch (Throwable t){
+    		sendError(session, t.getMessage());
+    	}
+    }
 
     private void getStats(WebSocketSession session)
     {

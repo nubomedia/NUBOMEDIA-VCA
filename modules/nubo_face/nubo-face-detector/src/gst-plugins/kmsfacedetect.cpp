@@ -19,6 +19,8 @@
 #define DEFAULT_HEIGHT 240
 #define GOP 4
 #define MOTION_EVENT "motion"
+#define DEFAULT_EUCLIDEAN_DIS 8
+#define TRACK_MAXIMUM_DISTANCE 30
 
 #define HAAR_CONF_FILE "/usr/share/opencv/haarcascades/haarcascade_frontalface_alt.xml"
 
@@ -29,7 +31,6 @@ using namespace cv;
 
 #define KMS_FACE_DETECT_UNLOCK(face_detect)				\
   (g_rec_mutex_unlock (&( (KmsFaceDetect *) face_detect)->priv->mutex))
-
 
 
 GST_DEBUG_CATEGORY_STATIC (kms_face_detect_debug_category);
@@ -50,6 +51,7 @@ enum {
   PROP_MULTI_SCALE_FACTOR,
   PROP_WIDTH_TO_PROCCESS,
   PROP_PROCESS_X_EVERY_4_FRAMES,
+  PROP_EUCLIDEAN_DISTANCE,
   PROP_SHOW_DEBUG_INFO
 };
 
@@ -72,22 +74,15 @@ struct _KmsFaceDetectPrivate {
   int scale_factor;
   int process_x_every_4_frames;
   int num_frame;
+  int euclidean_dis;
   CascadeClassifier *cascade;
   GstClockTime dts,pts;
   GQueue *events_queue;
   GRecMutex mutex;
   gboolean debug;
-
-  /*detect_event*/
-  // 0(default) => will always run the alg; 
-  // 1=> will only run the alg if the filter receive some special event
-  /*meta_data*/
-  //0 (default) => it will not send meta data;
-  //1 => it will send the bounding box of the face as metadata 
-  /*num_frames_to_process*/
-  // When we receive an event we need to process at least NUM_FRAMES_TO_PROCESS
-
+  Rect vibration_p; 
 };
+
 /* pad templates */
 #define VIDEO_SRC_CAPS				\
   GST_VIDEO_CAPS_MAKE("{ BGR }")
@@ -105,6 +100,13 @@ G_DEFINE_TYPE_WITH_CODE (KmsFaceDetect, kms_face_detect,
 #define MULTI_SCALE_FACTOR(scale) (1 + scale*1.0/100)
 
 static CascadeClassifier cascade;
+
+static int __cal_distance(Point p1, Point p2)
+{
+  double h2;
+  h2 = sqrt(pow((p2.x -p1.x),2) + pow((p2.y- p1.y),2));
+  return (int)h2;
+}
 
 static int
 kms_face_detect_init_cascade()
@@ -255,7 +257,10 @@ kms_face_detect_set_property (GObject *object, guint property_id,
 
   case PROP_MULTI_SCALE_FACTOR:
     face_detect->priv->scale_factor = g_value_get_int(value);
-
+    break;
+   
+  case PROP_EUCLIDEAN_DISTANCE:
+    face_detect->priv->euclidean_dis = g_value_get_int(value);
     break;
 
   default:
@@ -305,6 +310,10 @@ kms_face_detect_get_property (GObject *object, guint property_id,
     g_value_set_int(value,face_detect->priv->width_to_process);
     break;
 
+  case PROP_EUCLIDEAN_DISTANCE:
+    g_value_set_int(value,face_detect->priv->euclidean_dis);
+    break;
+    
   default:
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
     break;
@@ -325,7 +334,6 @@ static gboolean __get_timestamp(KmsFaceDetect *face,
 
     gst_structure_get(ts,"dts",G_TYPE_UINT64,
 		      &face->priv->dts,NULL);
-
     gst_structure_get(ts,"pts",G_TYPE_UINT64,
 		      &face->priv->pts,NULL);
     gst_structure_free(ts);
@@ -375,8 +383,8 @@ static bool __process_alg(KmsFaceDetect *face_detect, GstClockTime f_pts)
   GstStructure *message;
   bool res=false;
   gboolean ret = false;
-  //if detect_event is false it does not matter the event received
 
+  //if detect_event is false it does not matter the event received
   if (0==face_detect->priv->detect_event) return true;
   if (g_queue_get_length(face_detect->priv->events_queue) == 0) 
     return false;
@@ -387,7 +395,6 @@ static bool __process_alg(KmsFaceDetect *face_detect, GstClockTime f_pts)
     {
       ret=__get_timestamp(face_detect,message);
 	
-      //if ( ret && face_detect->priv->pts == f_pts)
       if ( ret )
 	{
 	  res = __get_message(message);	  
@@ -435,11 +442,12 @@ kms_face_detect_process_frame(KmsFaceDetect *face_detect,int width,int height,do
       cv::resize( img,aux_img,  aux_img.size(), 0, 0, INTER_LINEAR );
       cvtColor( aux_img, img_gray, CV_BGR2GRAY );
       equalizeHist( img_gray, img_gray );
-      
+
       faces->clear();
       cascade.detectMultiScale(img_gray,*faces,
 			       MULTI_SCALE_FACTOR(face_detect->priv->scale_factor),
 			       3,0,Size(img_gray.cols/20,img_gray.rows/20 ));
+
     }
   
   if (GOP == face_detect->priv->num_frame )
@@ -450,11 +458,28 @@ kms_face_detect_process_frame(KmsFaceDetect *face_detect,int width,int height,do
       
       color = colors[i%8];
       if (face_detect->priv->show_faces > 0)
-	cvRectangle( face_detect->priv->img_orig, cvPoint(cvRound(r->x*scale), 
-							  cvRound(r->y*scale)),
-		     cvPoint(cvRound((r->x + r->width-1)*scale), 
-			     cvRound((r->y + r->height-1)*scale)),
-		     color, 3, 8, 0);
+	{
+	  Rect *rP = &(face_detect->priv->vibration_p);
+	  int distance = __cal_distance(cvPoint(cvRound(r->x*scale + r->width*scale/2),
+						cvRound(r->y*scale + r->height*scale/2)),
+					cvPoint(cvRound(rP->x*scale + rP->width*scale/2),
+						cvRound(rP->y*scale + rP->height*scale/2)));
+
+	  if (distance > face_detect->priv->euclidean_dis )
+	    {
+	      rP->x = r->x;
+	      rP->y = r->y;
+	      rP->width = r->width;
+	      rP->height = r->height;
+	      
+	    }
+						  
+	  cvRectangle( face_detect->priv->img_orig, 
+		       cvPoint(cvRound(rP->x*scale),cvRound(rP->y*scale)),
+		       cvPoint(cvRound((rP->x + rP->width-1)*scale), 
+			       cvRound((rP->y + rP->height-1)*scale)),
+		       color, 3, 8, 0);
+	}
     }
 }
 /**
@@ -567,6 +592,11 @@ kms_face_detect_init (KmsFaceDetect *
   face_detect->priv->num_frame=0;
   face_detect->priv->width_to_process=DEFAULT_WIDTH;
   face_detect->priv->scale_factor=DEFAULT_SCALE_FACTOR;
+  face_detect->priv->vibration_p.x=0;
+  face_detect->priv->vibration_p.y=0;
+  face_detect->priv->vibration_p.width=0;
+  face_detect->priv->vibration_p.height=0;
+  face_detect->priv->euclidean_dis = DEFAULT_EUCLIDEAN_DIS;
 
   face_detect->priv->cv_mem_storage=cvCreateMemStorage(0);
   face_detect->priv->face_seq =cvCreateSeq (0, sizeof (CvSeq), sizeof (CvRect),
@@ -639,6 +669,11 @@ g_object_class_install_property (gobject_class, PROP_WIDTH_TO_PROCCESS,
 				  g_param_spec_int ("process-x-every-4-frames", "process x every 4 frames",
 						    "1,2,3,4 (default) => process x frames every 4 frames", 
 						    0,4,FALSE, (GParamFlags) G_PARAM_READWRITE));
+
+ g_object_class_install_property (gobject_class,   PROP_EUCLIDEAN_DISTANCE,
+				  g_param_spec_int ("euclidean-distance", "euclidean distance",
+						    "0 - 20 (8 default) => Distance among faces of consecutives faces to delete vibrations produced by little changes of pixels of the same faces", 
+						    0,20,FALSE, (GParamFlags) G_PARAM_READWRITE));
  
 
  g_object_class_install_property (gobject_class,   PROP_MULTI_SCALE_FACTOR,

@@ -254,6 +254,17 @@ function get_stats()
     sendMessage(message);
 }
 
+function euclidean_dis(dis_val)
+{
+    var message = {
+	id: 'euclidean_dis',
+	val: dis_val
+    }
+
+    document.getElementById('euc_dis').innerHTML=dis_val;
+
+    sendMessage(message);
+}
 /**
  * Lightbox utility (to display media pipeline image in a modal dialog)
  */

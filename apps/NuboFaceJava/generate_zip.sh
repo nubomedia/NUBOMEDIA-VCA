@@ -20,6 +20,10 @@ if [ "$1" = "maven-central" ]; then
     cp target/$APP_NAME-$VERSION.jar  $MVN_CENTRAL
     cp target/$APP_NAME-$VERSION-javadoc.jar  $MVN_CENTRAL/
     cp target/$APP_NAME-$VERSION-sources.jar  $MVN_CENTRAL/
+
+    cp target/$APP_NAME-$VERSION-sources.zip  $MVN_CENTRAL/
+    cp $MVN_CENTRAL/$APP_NAME-$VERSION-sources.zip target/$APP_NAME-$VERSION-sources.zio
+
     cp pom.xml $MVN_CENTRAL/
     cd $MVN_CENTRAL/; gpg2 -ab $APP_NAME-$VERSION.jar
     gpg2 -ab $APP_NAME-$VERSION-javadoc.jar

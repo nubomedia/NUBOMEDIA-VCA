@@ -81,6 +81,17 @@
 			    "type": "int"
 			}
 		    ]
+		},
+		{
+		    "name": "euclideanDistance",
+		    "doc": "Distance among faces of consecutives faces to delete vibrations produced by little changes of pixels of the same faces. To produce a change in the position and size of the face, the distance between the same face of consecutives frames will have to be higher than this value",
+		    "params": [
+			{
+			    "name":"distance", 
+			    "doc":" 0,20 (8 default)",
+			    "type": "int"
+			}
+		    ]
 		}
 
 	    ]

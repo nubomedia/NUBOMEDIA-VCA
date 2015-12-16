@@ -18,7 +18,7 @@ GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);
 #define FACTOR_SCALE "multi-scale-factor"
 #define X_EVERY_4_FRAMES "process-x-every-4-frames"
 #define WIDTH_TO_PROCESS "width-to-process"
-
+#define EUCLIDEAN_DISTANCE "euclidean-distance"
 
 namespace kurento
 {
@@ -80,6 +80,10 @@ namespace kurento
 	g_object_set(G_OBJECT (nubo_face),WIDTH_TO_PROCESS , width, NULL);
       }
 
+      void NuboFaceDetectorImpl::euclideanDistance(int distance)
+      {
+	g_object_set(G_OBJECT (nubo_face),EUCLIDEAN_DISTANCE , distance, NULL);
+      }
       MediaObjectImpl *
       NuboFaceDetectorImplFactory::createObject (const boost::property_tree::ptree &config, std::shared_ptr<MediaPipeline> mediaPipeline) const
       {

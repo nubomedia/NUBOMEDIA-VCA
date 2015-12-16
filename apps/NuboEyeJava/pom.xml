@@ -23,13 +23,14 @@
 
 	<organization>
 		<name>Visual Tools</name>
-		<url>http://www.visual-tools.com</url>
+		<url>http://www.visual-tools.com</url>		
 	</organization>
 
 	<scm>
 		<url>https://github.com/VictorHidalgoVT/NUBOMEDIA-VCA</url>
 		<connection>scm:git:https://github.com/VictorHidalgoVT/NUBOMEDIA-VCA</connection>
-		<developerConnection>scm:git://git@github.com:VictorHidalgoVT/NUBOMEDIA-VCA</developerConnection>
+		<developerConnection>scm:git://git@github.com:VictorHidalgoVT/NUBOMEDIA-VCA</developerConnection>		
+		<developerConnection>scm:git://
 		<tag>master</tag>
 	</scm>
 
@@ -45,7 +46,9 @@
 	<properties>		
 		<!-- Main class -->
 		<!-- <demo.port>8103</demo.port> -->
+		<!-- <demo.port>8104</demo.port> -->
 		<start-class>com.visual_tools.nubomedia.nuboEyeJava.NuboEyeJavaApp</start-class>
+		
 
 	</properties>
 
