@@ -10,6 +10,10 @@ set(NUBO_FACE_DETECTOR_SOURCES
   nubofacedetector.c
   kmsfacedetect.cpp
   kmsfacedetect.h
+  BaseFace.hpp
+  BaseFace.cpp
+  Faces.hpp
+  Faces.cpp
 )
 
 add_library(nubofacedetector MODULE ${NUBO_FACE_DETECTOR_SOURCES})

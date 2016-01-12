@@ -265,6 +265,30 @@ function euclidean_dis(dis_val)
 
     sendMessage(message);
 }
+
+function track_threshold(dis_val)
+{
+    var message = {
+	id: 'track_threshold',
+	val: dis_val
+    }
+
+    document.getElementById('track_threshold').innerHTML=dis_val;
+
+    sendMessage(message);
+}
+
+function area_threshold(dis_val)
+{
+    var message = {
+	id: 'area_threshold',
+	val: dis_val
+    }
+
+    document.getElementById('area_threshold').innerHTML=dis_val;
+
+    sendMessage(message);
+}
 /**
  * Lightbox utility (to display media pipeline image in a modal dialog)
  */

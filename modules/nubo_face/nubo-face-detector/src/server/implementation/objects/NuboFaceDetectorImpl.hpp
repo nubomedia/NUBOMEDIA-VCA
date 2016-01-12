@@ -52,6 +52,8 @@ public:
   void processXevery4Frames(int xper4);
   void widthToProcess(int width);
   void euclideanDistance(int distance);
+  void trackThreshold(int threshold);
+  void areaThreshold(int threshold);
 
   /* Next methods are automatically implemented by code generator */
   virtual bool connect (const std::string &eventType, std::shared_ptr<EventHandler> handler);

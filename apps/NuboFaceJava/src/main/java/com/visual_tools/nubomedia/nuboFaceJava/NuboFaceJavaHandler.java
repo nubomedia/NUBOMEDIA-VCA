@@ -92,6 +92,12 @@ public class NuboFaceJavaHandler extends TextWebSocketHandler {
 	case "euclidean_dis":
 		setEuclideanDistance(session,jsonMessage);
 		break;
+	case "area_threshold":
+		setAreaThreshold(session,jsonMessage);
+		break;
+	case "track_treshold":
+		setTrackThreshold(session,jsonMessage);
+		break;
 	case "stop": {
 	    UserSession user = users.remove(session.getId());
 	    if (user != null) {
@@ -229,17 +235,16 @@ public class NuboFaceJavaHandler extends TextWebSocketHandler {
     private void setWidthToProcess(WebSocketSession session,JsonObject jsonObject)
     {
 	
-	try{
-	    int width = jsonObject.get("val").getAsInt();
-	    
-	    if (null != face)
-		{		    
-		    face.widthToProcess(width);
+		try{	
+		    int width = jsonObject.get("val").getAsInt();
+		    
+		    if (null != face)
+			{		    
+			    face.widthToProcess(width);
+			}
+		   } catch (Throwable t){
+				sendError(session,t.getMessage());
 		}
-	    
-	} catch (Throwable t){
-	    sendError(session,t.getMessage());
-	}
     }
     
     private void setEuclideanDistance(WebSocketSession session,JsonObject jsonObject)
@@ -255,6 +260,34 @@ public class NuboFaceJavaHandler extends TextWebSocketHandler {
     	}
     }
 
+    private void setTrackThreshold(WebSocketSession session,JsonObject jsonObject)
+    {
+    	try{
+    		int track_thres= jsonObject.get("val").getAsInt();
+    		
+    		if (null != face)
+    			face.trackThreshold(track_thres);
+    		
+    	}catch (Throwable t){
+    		sendError(session, t.getMessage());
+    	}
+    }
+    
+	private void setAreaThreshold(WebSocketSession session,JsonObject jsonObject)
+	{
+		try{
+    		int area_thres= jsonObject.get("val").getAsInt();
+    		
+    		if (null != face)
+    		{    			
+    			face.areaThreshold(area_thres);
+    		}
+    		
+    	}catch (Throwable t){
+    		sendError(session, t.getMessage());
+    	}
+	}
+	
     private void getStats(WebSocketSession session)
     {
     	

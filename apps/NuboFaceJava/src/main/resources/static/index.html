@@ -131,11 +131,26 @@
 	
 	  <table style="margin: 5px 10px 20px 10px">
 	    <tr>
+	      <td align="left" width="250px" > <span > Track thrshold  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span> <span id="track_threshold">30</span> </td>
+	      <td align="left" width="300px">
+		<input id="bar_distance"type="range" min="0" max="100" value="30" step="1" onchange="track_threshold(this.value)" /> 
+	      </td>											
+	    </tr>
+
+	    <tr>
 	      <td align="left" width="250px" > <span > Euclidean distance  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span> <span id="euc_dis">8</span> </td>
 	      <td align="left" width="300px">
 		<input id="bar_distance"type="range" min="0" max="30" value="8" step="1" onchange="euclidean_dis(this.value)" /> 
 	      </td>											
 	    </tr>
+
+	    <tr>
+	      <td align="left" width="250px" > <span > Area thrshold  &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span> <span id="area_threshold">500</span> </td>
+	      <td align="left" width="300px">
+		<input id="bar_distance"type="range" min="0" max="1000" value="500" step="1" onchange="area_threshold(this.value)" /> 
+	      </td>											
+	    </tr>
+
 	    <tr></tr>
 	  </table>
 	  

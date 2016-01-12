@@ -1,4 +1,5 @@
 #include "kmsfacedetect.h"
+#include "Faces.hpp"
 
 #include <gst/gst.h>
 #include <gst/video/video.h>
@@ -19,8 +20,10 @@
 #define DEFAULT_HEIGHT 240
 #define GOP 4
 #define MOTION_EVENT "motion"
+#define MAX_NUM_FPS_WITH_NO_DETECTION 6
 #define DEFAULT_EUCLIDEAN_DIS 8
-#define TRACK_MAXIMUM_DISTANCE 30
+#define TRACK_MAXIMUM_DISTANCE 40
+#define AREA_THRESHOLD 500
 
 #define HAAR_CONF_FILE "/usr/share/opencv/haarcascades/haarcascade_frontalface_alt.xml"
 
@@ -51,7 +54,9 @@ enum {
   PROP_MULTI_SCALE_FACTOR,
   PROP_WIDTH_TO_PROCCESS,
   PROP_PROCESS_X_EVERY_4_FRAMES,
-  PROP_EUCLIDEAN_DISTANCE,
+  PROP_EUCLIDEAN_THRESHOLD,
+  PROP_TRACK_THRESHOLD,
+  PROP_AREA_THRESHOLD,
   PROP_SHOW_DEBUG_INFO
 };
 
@@ -62,7 +67,6 @@ struct _KmsFaceDetectPrivate {
   IplImage *img_resized;
   CvMemStorage *cv_mem_storage;
   CvSeq *face_seq;
-  vector<Rect> *faces_detected;
   int img_width;
   int img_height;
   int width_to_process; 
@@ -74,13 +78,19 @@ struct _KmsFaceDetectPrivate {
   int scale_factor;
   int process_x_every_4_frames;
   int num_frame;
-  int euclidean_dis;
+  int euclidean_threshold;
+  int track_threshold;
+  int area_threshold;
   CascadeClassifier *cascade;
   GstClockTime dts,pts;
   GQueue *events_queue;
   GRecMutex mutex;
   gboolean debug;
-  Rect vibration_p; 
+  int num_iter;
+  int frames_with_no_detection;
+  //Faces faces_detected; 
+  //vector<Rect> *faces_detected;
+  Faces *faces_detected;
 };
 
 /* pad templates */
@@ -100,13 +110,15 @@ G_DEFINE_TYPE_WITH_CODE (KmsFaceDetect, kms_face_detect,
 #define MULTI_SCALE_FACTOR(scale) (1 + scale*1.0/100)
 
 static CascadeClassifier cascade;
+const Scalar BaseFace::colors[]={ CV_RGB(0,0,255),
+				  CV_RGB(0,128,255),
+				  CV_RGB(0,255,255),
+				  CV_RGB(0,255,0),
+				  CV_RGB(255,128,0),
+				  CV_RGB(255,255,0),
+				  CV_RGB(255,0,0),
+				  CV_RGB(255,0,255)};
 
-static int __cal_distance(Point p1, Point p2)
-{
-  double h2;
-  h2 = sqrt(pow((p2.x -p1.x),2) + pow((p2.y- p1.y),2));
-  return (int)h2;
-}
 
 static int
 kms_face_detect_init_cascade()
@@ -131,9 +143,11 @@ static void kms_face_send_event(KmsFaceDetect *face_detect,GstVideoFrame *frame,
   GstStructure *message;
   int i=0;
   char face_id[10];
-  vector<Rect> *fd=face_detect->priv->faces_detected;
+  Faces *faces = face_detect->priv->faces_detected;    
+  vector<Rect> *fd=  new vector<Rect>;
   int norm_scale = face_detect->priv->img_width / width2process;
-
+  
+  faces->get_faces(fd);
   message= gst_structure_new_empty("message");
   ts=gst_structure_new("time",
 		       "pts",G_TYPE_UINT64, GST_BUFFER_PTS(frame->buffer),NULL);
@@ -225,7 +239,7 @@ kms_face_detect_set_property (GObject *object, guint property_id,
   //Changing values of the properties is a critical region because read/write
   //concurrently could produce race condition. For this reason, the following
   //code is protected with a mutex
-
+  FILE *f;
   char buffer[256];
   memset (buffer,0,256);
 
@@ -259,8 +273,16 @@ kms_face_detect_set_property (GObject *object, guint property_id,
     face_detect->priv->scale_factor = g_value_get_int(value);
     break;
    
-  case PROP_EUCLIDEAN_DISTANCE:
-    face_detect->priv->euclidean_dis = g_value_get_int(value);
+  case PROP_EUCLIDEAN_THRESHOLD:
+    face_detect->priv->euclidean_threshold = g_value_get_int(value);
+    break;
+
+  case PROP_TRACK_THRESHOLD:
+    face_detect->priv->euclidean_threshold = g_value_get_int(value);
+    break;
+
+  case PROP_AREA_THRESHOLD:
+    face_detect->priv->area_threshold = g_value_get_int(value);
     break;
 
   default:
@@ -310,10 +332,18 @@ kms_face_detect_get_property (GObject *object, guint property_id,
     g_value_set_int(value,face_detect->priv->width_to_process);
     break;
 
-  case PROP_EUCLIDEAN_DISTANCE:
-    g_value_set_int(value,face_detect->priv->euclidean_dis);
+  case PROP_EUCLIDEAN_THRESHOLD:
+    g_value_set_int(value,face_detect->priv->euclidean_threshold);
     break;
-    
+
+  case PROP_TRACK_THRESHOLD:
+    g_value_set_int(value,face_detect->priv->track_threshold);
+    break;
+
+  case PROP_AREA_THRESHOLD:
+    g_value_set_int(value,face_detect->priv->area_threshold);
+    break;
+
   default:
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
     break;
@@ -408,7 +438,6 @@ static bool __process_alg(KmsFaceDetect *face_detect, GstClockTime f_pts)
   return res;
 }
 
-
 static void
 kms_face_detect_process_frame(KmsFaceDetect *face_detect,int width,int height,double scale,
 			      GstClockTime pts)
@@ -417,22 +446,16 @@ kms_face_detect_process_frame(KmsFaceDetect *face_detect,int width,int height,do
   Scalar color;
   Mat aux_img (cvRound (img.rows/scale), cvRound(img.cols/scale), CV_8UC3 );
   Mat img_gray(cvRound (img.rows/scale), cvRound(img.cols/scale), CV_8UC1 );
-  vector<Rect> *faces = face_detect->priv->faces_detected;
+  Faces *faces = face_detect->priv->faces_detected;
+  vector<Rect> *current_faces= new vector<Rect>;
 
   int i=0;
-  const static Scalar colors[] =  { CV_RGB(0,0,255),
-				    CV_RGB(0,128,255),
-				    CV_RGB(0,255,255),
-				    CV_RGB(0,255,0),
-				    CV_RGB(255,128,0),
-				    CV_RGB(255,255,0),
-				    CV_RGB(255,0,0),
-				    CV_RGB(255,0,255)} ;
 
   if ( ! __process_alg(face_detect,pts) && face_detect->priv->num_frames_to_process <= 0 )
     return;
 
   face_detect->priv->num_frame++;
+  face_detect->priv->num_iter++;
   if ( (2 == face_detect->priv->process_x_every_4_frames &&
 	(1 == face_detect->priv->num_frame % 2)) ||  
        ( (2 != face_detect->priv->process_x_every_4_frames) &&
@@ -442,45 +465,33 @@ kms_face_detect_process_frame(KmsFaceDetect *face_detect,int width,int height,do
       cv::resize( img,aux_img,  aux_img.size(), 0, 0, INTER_LINEAR );
       cvtColor( aux_img, img_gray, CV_BGR2GRAY );
       equalizeHist( img_gray, img_gray );
-
-      faces->clear();
-      cascade.detectMultiScale(img_gray,*faces,
+      
+      cascade.detectMultiScale(img_gray,*current_faces,
 			       MULTI_SCALE_FACTOR(face_detect->priv->scale_factor),
 			       3,0,Size(img_gray.cols/20,img_gray.rows/20 ));
 
+      if ( current_faces->size()  >0 ){
+	Faces cf(*current_faces);
+	faces->track_faces(&cf,face_detect->priv->track_threshold ,face_detect->priv->euclidean_threshold,face_detect->priv->area_threshold,face_detect->priv->num_iter);
+      }
+      else 
+	{
+	  if (face_detect->priv->frames_with_no_detection < MAX_NUM_FPS_WITH_NO_DETECTION)
+	    face_detect->priv->frames_with_no_detection +=1;
+	  else //delete all the faces
+	    {
+	      face_detect->priv->frames_with_no_detection +=1;
+	      faces->clear(); 	    	    
+	    }
+	} 
     }
   
   if (GOP == face_detect->priv->num_frame )
     face_detect->priv->num_frame=0;
 
-  for( vector<Rect>::const_iterator r = faces->begin(); r != faces->end(); r++,i++ )
-    {
-      
-      color = colors[i%8];
-      if (face_detect->priv->show_faces > 0)
-	{
-	  Rect *rP = &(face_detect->priv->vibration_p);
-	  int distance = __cal_distance(cvPoint(cvRound(r->x*scale + r->width*scale/2),
-						cvRound(r->y*scale + r->height*scale/2)),
-					cvPoint(cvRound(rP->x*scale + rP->width*scale/2),
-						cvRound(rP->y*scale + rP->height*scale/2)));
+  if (face_detect->priv->show_faces > 0)
+    faces->draw(face_detect->priv->img_orig,scale,face_detect->priv->num_iter);
 
-	  if (distance > face_detect->priv->euclidean_dis )
-	    {
-	      rP->x = r->x;
-	      rP->y = r->y;
-	      rP->width = r->width;
-	      rP->height = r->height;
-	      
-	    }
-						  
-	  cvRectangle( face_detect->priv->img_orig, 
-		       cvPoint(cvRound(rP->x*scale),cvRound(rP->y*scale)),
-		       cvPoint(cvRound((rP->x + rP->width-1)*scale), 
-			       cvRound((rP->y + rP->height-1)*scale)),
-		       color, 3, 8, 0);
-	}
-    }
 }
 /**
  * This function contains the image processing.
@@ -585,31 +596,31 @@ kms_face_detect_init (KmsFaceDetect *
   face_detect->priv->events_queue= g_queue_new();
   face_detect->priv->detect_event=0;
   face_detect->priv->meta_data=0;
-  face_detect->priv->faces_detected= new vector<Rect>;
+  face_detect->priv->faces_detected= new Faces();
   face_detect->priv->num_frames_to_process=0;
-
+  
   face_detect->priv->process_x_every_4_frames=PROCESS_ALL_FRAMES;
   face_detect->priv->num_frame=0;
   face_detect->priv->width_to_process=DEFAULT_WIDTH;
   face_detect->priv->scale_factor=DEFAULT_SCALE_FACTOR;
-  face_detect->priv->vibration_p.x=0;
-  face_detect->priv->vibration_p.y=0;
-  face_detect->priv->vibration_p.width=0;
-  face_detect->priv->vibration_p.height=0;
-  face_detect->priv->euclidean_dis = DEFAULT_EUCLIDEAN_DIS;
+  face_detect->priv->euclidean_threshold = DEFAULT_EUCLIDEAN_DIS;
+  face_detect->priv->track_threshold = TRACK_MAXIMUM_DISTANCE;
+  face_detect->priv->area_threshold = AREA_THRESHOLD;
+  face_detect->priv->num_iter = 0;
+  face_detect->priv->frames_with_no_detection=0;
 
   face_detect->priv->cv_mem_storage=cvCreateMemStorage(0);
   face_detect->priv->face_seq =cvCreateSeq (0, sizeof (CvSeq), sizeof (CvRect),
 					    face_detect->priv->cv_mem_storage);
   face_detect->priv->show_faces = 0;
-
+  
   if (cascade.empty())
     if (kms_face_detect_init_cascade() < 0)
       std::cout << "Error: init cascade" << std::endl;
-
+  
   face_detect->priv->cascade = & cascade;
-
-
+  
+  
   if (ret != 0)
     GST_DEBUG ("Error reading the haar cascade configuration file");
 
@@ -670,11 +681,20 @@ g_object_class_install_property (gobject_class, PROP_WIDTH_TO_PROCCESS,
 						    "1,2,3,4 (default) => process x frames every 4 frames", 
 						    0,4,FALSE, (GParamFlags) G_PARAM_READWRITE));
 
- g_object_class_install_property (gobject_class,   PROP_EUCLIDEAN_DISTANCE,
+ g_object_class_install_property (gobject_class,   PROP_EUCLIDEAN_THRESHOLD,
 				  g_param_spec_int ("euclidean-distance", "euclidean distance",
 						    "0 - 20 (8 default) => Distance among faces of consecutives faces to delete vibrations produced by little changes of pixels of the same faces", 
 						    0,20,FALSE, (GParamFlags) G_PARAM_READWRITE));
- 
+
+
+ g_object_class_install_property (gobject_class,   PROP_TRACK_THRESHOLD,
+				  g_param_spec_int ("track-threshold", "track threshold",
+						    "0 - 100 (30 default)", 
+						    0,100,FALSE, (GParamFlags) G_PARAM_READWRITE)); 
+g_object_class_install_property (gobject_class,   PROP_AREA_THRESHOLD,
+				  g_param_spec_int ("area-threshold", "area threshold",
+						    "0 - 1000 (500 default)", 
+						    0,1000,FALSE, (GParamFlags) G_PARAM_READWRITE)); 
 
  g_object_class_install_property (gobject_class,   PROP_MULTI_SCALE_FACTOR,
 				  g_param_spec_int ("multi-scale-factor", "multi scale factor",

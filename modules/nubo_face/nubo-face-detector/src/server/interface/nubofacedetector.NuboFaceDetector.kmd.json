@@ -15,6 +15,7 @@
 		    }
 		]
 	    },
+
 	    "methods": [
 		{
 		    "name": "showFaces",
@@ -27,6 +28,7 @@
 			}
 		    ]
 		},
+
 		{
 		    "name": "detectByEvent",
 		    "doc" : "To indicate to the algorithm if process all the images or only when it receives an event",
@@ -38,6 +40,7 @@
 			}	  
      		    ]
 		},
+
 		{
 		    "name": "sendMetaData",
 		    "doc" : "The faces detected (x,y,width,height) are sent as metadata ",
@@ -49,6 +52,7 @@
 			}	  
      		    ]
 		},
+
 		{
 		    "name": "multiScaleFactor",
 		    "doc": "Specify how much the image size is reduced at each haar image ",
@@ -60,6 +64,7 @@
 			}
 		    ]
 		},
+
 		{
 		    "name": "processXevery4Frames",
 		    "doc": "process x every 4 frames",
@@ -71,6 +76,7 @@
 			}
 		    ]
 		},
+
 		{
 		    "name": "widthToProcess",
 		    "doc": "this will be the width of the image that the algorithm is going to process to detect faces",
@@ -82,6 +88,7 @@
 			}
 		    ]
 		},
+
 		{
 		    "name": "euclideanDistance",
 		    "doc": "Distance among faces of consecutives faces to delete vibrations produced by little changes of pixels of the same faces. To produce a change in the position and size of the face, the distance between the same face of consecutives frames will have to be higher than this value",
@@ -92,8 +99,33 @@
 			    "type": "int"
 			}
 		    ]
+		},
+
+		{
+		    "name": "trackThreshold",
+		    "doc": "To be completed",
+		    "params": [
+			{
+			    "name":"threshold", 
+			    "doc":" 0,100 (30 default)",
+			    "type": "int"
+			}
+		    ]
+		},
+
+		{
+		    "name": "areaThreshold",
+		    "doc": "To be completed",
+		    "params": [
+			{
+			    "name":"threshold", 
+			    "doc":" 0,1000 (500 default)",
+			    "type": "int"
+			}
+		    ]
 		}
 
+		
 	    ]
 	}
     ]
