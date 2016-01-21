@@ -134,8 +134,8 @@ void Faces::track_faces(Faces *cf,int track_threshold, int pos_threshold, int ar
 	  
 	  cf->delete_face(pos);	  
 	}
-
     }   
+
   if (cf->faces->size() > 0)
           
       for (it_cf = cf->faces->begin(); it_cf != cf->faces->end(); it_cf++)

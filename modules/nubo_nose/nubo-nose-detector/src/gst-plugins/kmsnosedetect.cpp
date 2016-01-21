@@ -31,6 +31,7 @@
 #define FACE_TYPE "face"
 #define NOSE_SCALE_FACTOR 1.1
 #define GOP 4
+#define DEFAULT_EUCLIDEAN_DIS 6
 
 using namespace cv;
 
@@ -449,6 +450,59 @@ static bool __process_alg(KmsNoseDetect *nose_detect, GstClockTime f_pts)
 
 }
 
+static vector<Rect> *__merge_noses_consecutives_frames(vector<Rect> *cn, vector<Rect> *noses,
+					       Rect &face_cord, int scale)
+{
+  vector<Rect>::iterator it_n ;
+  FILE *f;
+  vector<Rect> *res = new vector<Rect>;
+
+  for (int i=0; i < (int)(noses->size()); i++)
+    {
+      Point old_center;
+      old_center.x = noses->at(i).x + noses->at(i).width/2;
+      old_center.y = noses->at(i).y + noses->at(i).height/2;
+
+      for (int j=0; j < (int)(cn->size()); j++)
+	{
+	  Point new_center;	  
+	  new_center.x = (cn->at(j).x + face_cord.x)*scale + ((cn->at(j).width*scale)/2);
+	  new_center.y = (cn->at(j).y + face_cord.y)*scale +  ((cn->at(j).height*scale)/2);
+	  double h2 = sqrt(pow((new_center.x -old_center.x),2) + 
+			   pow((new_center.y - old_center.y),2));	  
+	  
+	  if (h2 < DEFAULT_EUCLIDEAN_DIS)
+	    { /*As the difference among pixels is very low, we mantain the coordinates of the
+	       previous nose in order to avoid vibrations*/	      	      
+	      res->push_back(noses->at(i));
+	      cn->erase(cn->begin()+j);	      
+	      break;
+	    }
+	  else {
+	    f=fopen("/tmp/track_noses.txt","a");
+	    fprintf(f,"\n\n h2 %d < %d DEFAULT_EUCLIDEAN_DIS \n",(int)h2,DEFAULT_EUCLIDEAN_DIS);
+	    fclose(f);
+	  }
+	}      
+    }
+
+  if (cn->size() > 0)
+    {
+      for(it_n = cn->begin(); it_n != cn->end();it_n++)
+	{	  
+	  /*as it is a new value, we need to take into account the face position to set up
+	   the right coordinates*/	  
+	  it_n->x = cvRound((face_cord.x + it_n->x)*scale);
+	  it_n->y= cvRound((face_cord.y+it_n->y)*scale);
+	  it_n->width=(it_n->width-1)*scale;
+	  it_n->height=(it_n->height-1)*scale;
+	  res->push_back(*it_n);
+	}
+    }
+  
+  return res;
+}
+
 static void
 kms_nose_detect_process_frame(KmsNoseDetect *nose_detect,int width,int height,double scale_f2n,
 			      double scale_n2o, double scale_o2f,GstClockTime pts)
@@ -456,13 +510,15 @@ kms_nose_detect_process_frame(KmsNoseDetect *nose_detect,int width,int height,do
   Mat img (nose_detect->priv->img_orig);
   vector<Rect> *faces=nose_detect->priv->faces;
   vector<Rect> *noses=nose_detect->priv->noses;
-  vector<Rect> nose;
+  vector<Rect> *nose = new vector<Rect>;
+  vector<Rect> *res= new vector<Rect>;
   Scalar color;
   Mat gray, nose_frame (cvRound(img.rows/scale_n2o), cvRound(img.cols/scale_n2o), CV_8UC1);
   Mat  smallImg( cvRound (img.rows/scale_o2f), cvRound(img.cols/scale_o2f), CV_8UC1 );
   Mat noseROI;
   Rect r_aux;
-  int i=0,j=0;
+  int i=0,j=0, k=0;
+
   const static Scalar colors[] =  { CV_RGB(255,0,255),
 				    CV_RGB(255,0,0),
 				    CV_RGB(255,255,0),
@@ -503,7 +559,6 @@ kms_nose_detect_process_frame(KmsNoseDetect *nose_detect,int width,int height,do
       resize(gray,nose_frame,nose_frame.size(), 0,0,INTER_LINEAR);
       equalizeHist( nose_frame, nose_frame);
 
-      noses->clear();
 
       for( vector<Rect>::iterator r = faces->begin(); r != faces->end(); r++,i++ )
 	{
@@ -512,7 +567,7 @@ kms_nose_detect_process_frame(KmsNoseDetect *nose_detect,int width,int height,do
 	  const int top_height=cvRound((float)r->height*TOP_PERCENTAGE/100);
 	  const int down_height=cvRound((float)r->height*DOWN_PERCENTAGE/100);
 	  const int side_width=cvRound((float)r->width*SIDE_PERCENTAGE/100);      
-	  
+	  vector<Rect> *result_aux;
 
 	  //Transforming the point detected in face image to nose coordinates
 	  //we only take the down half of the face to avoid excessive processing
@@ -521,23 +576,27 @@ kms_nose_detect_process_frame(KmsNoseDetect *nose_detect,int width,int height,do
 	  r_aux.height = (r->height-down_height-top_height)*scale_f2n;
 	  r_aux.width = (r->width-side_width)*scale_f2n;
 	  noseROI = nose_frame(r_aux);
-	  nose.clear();
-	  ncascade.detectMultiScale( noseROI, nose,
+	  ncascade.detectMultiScale( noseROI, *nose,
 				     NOSE_SCALE_FACTOR, 3,
 				     0|CV_HAAR_FIND_BIGGEST_OBJECT,
 				     Size(1, 1));   
 
-	  for ( vector<Rect>::iterator m = nose.begin(); m != nose.end();m++,j++)
+	  if (nose->size()>0)
 	    {
-	      Rect m_aux;
-	      m_aux.x=(r_aux.x + m->x)*scale_n2o;
-	      m_aux.y=(r_aux.y + m->y)*scale_n2o;
-	      m_aux.width=(m->width-1)*scale_n2o;
-	      m_aux.height=(m->height-1)*scale_n2o;
-	      noses->push_back(m_aux);
+	      result_aux=__merge_noses_consecutives_frames(nose,noses,r_aux,scale_n2o);
+	  
+	      for ( k=0; k < result_aux->size(); k++)		
+		res->push_back(result_aux->at(k));		
 	    }
+
 	}
     }
+
+  if (nose_detect->priv->noses->size()>0)
+    nose_detect->priv->noses->clear();
+
+  for (k=0;k < res->size();k++)
+    nose_detect->priv->noses->push_back(res->at(k));
 
   if (GOP == nose_detect->priv->num_frame )
     nose_detect->priv->num_frame=0;
@@ -550,9 +609,8 @@ kms_nose_detect_process_frame(KmsNoseDetect *nose_detect,int width,int height,do
 	color = colors[j%8];     
 	cvRectangle( nose_detect->priv->img_orig, cvPoint(m->x,m->y),
 		     cvPoint(cvRound(m->x + m->width), 
-			     cvRound(+m->y+ m->height-1)),
+			     cvRound(m->y+ m->height-1)),
 		     color, 3, 8, 0);	    
-
       }
   
 }

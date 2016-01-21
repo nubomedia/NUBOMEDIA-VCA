@@ -1,4 +1,4 @@
-#include "kmsmouthdetect.h"
+ #include "kmsmouthdetect.h"
 
 #include <gst/gst.h>
 #include <gst/video/video.h>
@@ -19,6 +19,7 @@
 #define DEFAULT_FILTER_TYPE (KmsMouthDetectType)0
 #define NUM_FRAMES_TO_PROCESS 10
 #define FACE_TYPE "face"
+#define DEFAULT_EUCLIDEAN_DIS 4
 
 #define PROCESS_ALL_FRAMES 4
 #define GOP 4
@@ -236,7 +237,6 @@ kms_mouth_detect_conf_images (KmsMouthDetect *mouth_detect,
     mouth_detect->priv->img_orig= cvCreateImageHeader(cvSize(frame->info.width,
 							     frame->info.height),
 						      IPL_DEPTH_8U, 3);
-
   if (mouth_detect->priv->detect_event) 
     /*If we receive faces through event, the coordinates are normalized to the img orig size*/
     mouth_detect->priv->scale_o2f = ((float)frame->info.width) / ((float)frame->info.width);
@@ -244,9 +244,7 @@ kms_mouth_detect_conf_images (KmsMouthDetect *mouth_detect,
     mouth_detect->priv->scale_o2f = ((float)frame->info.width) / ((float)FACE_WIDTH);
 
   mouth_detect->priv->scale_m2o= ((float) frame->info.width) / ((float)mouth_detect->priv->width_to_process);
-
   mouth_detect->priv->scale_f2m = ((float)mouth_detect->priv->scale_o2f) / ((float)mouth_detect->priv->scale_m2o);
-
   mouth_detect->priv->img_orig->imageData = (char *) info.data;
 
 }
@@ -446,12 +444,60 @@ static bool __process_alg(KmsMouthDetect *mouth_detect, GstClockTime f_pts)
   return res;
 }
 
+static vector<Rect> *__merge_mouths_consecutives_frames(vector<Rect> *cm, vector<Rect> *mouths,
+					       Rect &face_cord, int scale)
+{
+  vector<Rect>::iterator it_m ;
+  FILE *f;
+  vector<Rect> *res = new vector<Rect>;
 
+  res->clear();
+
+  for (int i=0; i < (int)(mouths->size()); i++)
+    {
+      Point old_center;
+      old_center.x = mouths->at(i).x + mouths->at(i).width/2;
+      old_center.y = mouths->at(i).y + mouths->at(i).height/2;
+
+      for (int j=0; j < (int)(cm->size()); j++)
+	{
+	  Point new_center;	  
+	  new_center.x = (cm->at(j).x + face_cord.x)*scale + ((cm->at(j).width * scale)/2);
+	  new_center.y = (cm->at(j).y + face_cord.y)*scale +  ((cm->at(j).height*scale)/2);
+	  double h2 = sqrt(pow((new_center.x -old_center.x),2) + 
+			   pow((new_center.y - old_center.y),2));	  
+	  if (h2 < DEFAULT_EUCLIDEAN_DIS)
+	    { /*As the difference among pixels is very low, we mantain the coordinates of the
+	       previous mouth in order to avoid vibrations*/	      
+	      res->push_back(mouths->at(i));
+	      cm->erase(cm->begin()+j);	      
+	      break;
+	    }
+	}      
+    }
+
+  if (cm->size() > 0)
+    {
+      for(it_m = cm->begin(); it_m != cm->end();it_m++)
+	{	  
+	  /*as it is a new value, we need to take into account the face position to set up
+	   the right coordinates*/	  
+	  it_m->x = cvRound((face_cord.x + it_m->x)*scale);
+	  it_m->y= cvRound((face_cord.y+it_m->y)*scale);
+	  it_m->width=(it_m->width-1)*scale;
+	  it_m->height=(it_m->height-1)*scale;
+	  res->push_back(*it_m);
+	}
+    }
+  
+  return res;
+}
+  
 static void
 kms_mouth_detect_process_frame(KmsMouthDetect *mouth_detect,int width,int height,
 			       double scale_f2m,double scale_m2o, double scale_o2f,GstClockTime pts)
 {
-  int i = 0,j=0;
+  int i = 0;
   Scalar color;
   Mat img (mouth_detect->priv->img_orig);
   Mat gray, mouth_frame (cvRound(img.rows/scale_m2o), cvRound(img.cols/scale_m2o), CV_8UC1);
@@ -459,8 +505,11 @@ kms_mouth_detect_process_frame(KmsMouthDetect *mouth_detect,int width,int height
   Mat mouthROI;
   vector<Rect> *faces=mouth_detect->priv->faces;
   vector<Rect> *mouths =mouth_detect->priv->mouths;
-  vector<Rect> mouth;
+  vector<Rect> *mouth= new vector<Rect>;
+  vector<Rect> *res= new vector<Rect>;
+  int k=0;
   Rect r_aux;
+  FILE *f;
   const static Scalar colors[] =  { CV_RGB(255,255,0),
 				    CV_RGB(255,128,0),
 				    CV_RGB(255,0,0),
@@ -470,7 +519,7 @@ kms_mouth_detect_process_frame(KmsMouthDetect *mouth_detect,int width,int height
 				    CV_RGB(0,255,255),
 				    CV_RGB(0,255,0)};	
 
-
+  
   if ( ! __process_alg(mouth_detect,pts) && mouth_detect->priv->num_frames_to_process <=0)
     return;
 
@@ -498,20 +547,17 @@ kms_mouth_detect_process_frame(KmsMouthDetect *mouth_detect,int width,int height
 				     Size(3, 3) );
 	}
       
-    
       //setting up the image where the mouth detector will be executed	
       resize(gray,mouth_frame,mouth_frame.size(), 0,0,INTER_LINEAR);
       equalizeHist( mouth_frame, mouth_frame);
-    
-      mouths->clear();
+          
 
       for( vector<Rect>::iterator r = faces->begin(); r != faces->end(); r++, i++ )
 	{	
-
+	  vector<Rect> *result_aux;
 	  const int half_height=cvRound((float)r->height/1.8);
 	  //Transforming the point detected in face image to mouht coordinates
-	  //we only take the down half of the face to avoid excessive processing
-	  
+	  //we only take the down half of the face to avoid excessive processing	  
 	  r_aux.y=(r->y + half_height)*scale_f2m;
 	  r_aux.x=r->x*scale_f2m;
 	  r_aux.height = half_height*scale_f2m;
@@ -519,43 +565,42 @@ kms_mouth_detect_process_frame(KmsMouthDetect *mouth_detect,int width,int height
 	  
 	  mouthROI = mouth_frame(r_aux);
 	  /*In this case, the scale factor is fixed, values higher than 1.1 work much worse*/
-	  mouth.clear();
-	  mcascade.detectMultiScale( mouthROI, mouth,
+
+	  mcascade.detectMultiScale( mouthROI, *mouth,
 				     MOUTH_SCALE_FACTOR, 3, 0
 				     |CV_HAAR_FIND_BIGGEST_OBJECT,
-				     Size(1, 1));
-	  
-	  for ( vector<Rect>::iterator m = mouth.begin(); m != mouth.end();m++,j++)	  
+				     Size(1,1));
+	  if (mouth->size()>0)	    
 	    {
-
-	      Rect m_aux;
-	      //Transforming the point detected in mouth image to oring coordinates
-	      m_aux.x = cvRound((r_aux.x + m->x)*scale_m2o);
-	      m_aux.y= cvRound((r_aux.y+m->y)*scale_m2o);
-	      m_aux.width=(m->width-1)*scale_m2o;
-	      m_aux.height=(m->height-1)*scale_m2o;
-	      mouths->push_back(m_aux);	      
+	      result_aux=__merge_mouths_consecutives_frames(mouth,mouths,r_aux, scale_m2o);
+	      for ( k=0; k < result_aux->size(); k++)		
+		  res->push_back(result_aux->at(k));		
 	    }
-	}
-	  
+	}	  
     }
+
+  if (mouth_detect->priv->mouths->size()>0)
+    mouth_detect->priv->mouths->clear();
+
+  for (k=0;k < res->size();k++)
+    mouth_detect->priv->mouths->push_back(res->at(k));
 
   if (GOP == mouth_detect->priv->num_frame )
     mouth_detect->priv->num_frame=0;
   
   //Printing on image
-  j=0;
+  int j=0;
+
   if (1 == mouth_detect->priv->view_mouths)
     for ( vector<Rect>::iterator m = mouths->begin(); m != mouths->end();m++,j++)	  
       {
 	color = colors[j%8];     
 	cvRectangle( mouth_detect->priv->img_orig, cvPoint(m->x,m->y),
-		     cvPoint(cvRound(m->x + m->width), 
+		     cvPoint(cvRound(m->x + m->width-1), 
 			     cvRound(m->y + m->height-1)),
 		     color, 3, 8, 0);	    
       }
 }
-
 /**
  * This function contains the image processing.
  */
@@ -585,7 +630,7 @@ kms_mouth_detect_transform_frame_ip (GstVideoFilter *filter,
   height = mouth_detect->priv->img_height;
       
   KMS_MOUTH_DETECT_UNLOCK (mouth_detect);
-      
+    
   kms_mouth_detect_process_frame(mouth_detect,width,height,scale_f2m,
 				 scale_m2o,scale_o2f,frame->buffer->pts);
 	
@@ -593,17 +638,12 @@ kms_mouth_detect_transform_frame_ip (GstVideoFilter *filter,
     kms_mouth_send_event(mouth_detect,frame);
      
   gst_buffer_unmap (frame->buffer, &info);
- 
   
   gettimeofday(&end,NULL);
-
+  
   unsigned long long time_start= (((float)start.tv_sec * 1000.0) + (float(start.tv_usec)/1000.0));
   unsigned long long time_end=  (((float)end.tv_sec * 1000.0) + (float(end.tv_usec)/1000.0));
   unsigned long long total_time = time_end - time_start;
-
-  FILE *f = fopen("/tmp/mouth_detector.log","a+");
-  fprintf(f,"Iteration time %llu \n",total_time);
-  fclose(f);
 
   return GST_FLOW_OK;
 }
@@ -635,7 +675,6 @@ kms_mouth_detect_finalize (GObject *object)
   delete mouth_detect->priv->mouths;
   g_rec_mutex_clear(&mouth_detect->priv->mutex);
 }
-
 /*
  * In this function it is possible to initialize the variables.
  * For example, we set edge_value to 125 and the filter type to
@@ -708,13 +747,10 @@ kms_mouth_detect_class_init (KmsMouthDetectClass *mouth)
   gobject_class->finalize = kms_mouth_detect_finalize;
 
   //properties definition
-
-
   g_object_class_install_property (gobject_class, PROP_VIEW_MOUTHS,
 				   g_param_spec_int ("view-mouths", "view mouths",
 						     "To indicate whether or not we have to draw  the detected mouths on the stream ",
 						     0, 1,FALSE, (GParamFlags) G_PARAM_READWRITE) );
-
 
   g_object_class_install_property (gobject_class, PROP_DETECT_BY_EVENT,
 				   g_param_spec_int ("detect-event", "detect event",
@@ -726,7 +762,6 @@ kms_mouth_detect_class_init (KmsMouthDetectClass *mouth)
 						     "0 (default) => it will not send meta data; 1 => it will send the bounding box of the mouth and face", 
 						     0,1,FALSE, (GParamFlags) G_PARAM_READWRITE));
 
-
   g_object_class_install_property (gobject_class, PROP_WIDTH_TO_PROCESS,
 				   g_param_spec_int ("width-to-process", "width to process",
 						     "160,320 (default),480,640 => this will be the width of the image that the algorithm is going to process to detect mouths", 
@@ -737,12 +772,10 @@ kms_mouth_detect_class_init (KmsMouthDetectClass *mouth)
 						     "1,2,3,4 (default) => process x frames every 4 frames", 
 						     0,4,FALSE, (GParamFlags) G_PARAM_READWRITE));
   
-  
   g_object_class_install_property (gobject_class,   PROP_MULTI_SCALE_FACTOR,
 				   g_param_spec_int ("multi-scale-factor", "multi scale factor",
 						     "5-50  (25 default) => specifying how much the image size is reduced at each image scale.", 
 						     0,51,FALSE, (GParamFlags) G_PARAM_READWRITE));
-
 
   video_filter_class->transform_frame_ip =
     GST_DEBUG_FUNCPTR (kms_mouth_detect_transform_frame_ip);
@@ -752,7 +785,6 @@ kms_mouth_detect_class_init (KmsMouthDetectClass *mouth)
 
   mouth->base_mouth_detect_class.parent_class.sink_event =
     GST_DEBUG_FUNCPTR(kms_mouth_detect_sink_events);
-
 }
 
 gboolean

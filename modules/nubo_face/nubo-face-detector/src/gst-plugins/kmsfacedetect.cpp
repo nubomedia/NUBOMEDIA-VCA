@@ -20,7 +20,7 @@
 #define DEFAULT_HEIGHT 240
 #define GOP 4
 #define MOTION_EVENT "motion"
-#define MAX_NUM_FPS_WITH_NO_DETECTION 6
+#define MAX_NUM_FPS_WITH_NO_DETECTION 1
 #define DEFAULT_EUCLIDEAN_DIS 8
 #define TRACK_MAXIMUM_DISTANCE 40
 #define AREA_THRESHOLD 500
@@ -480,7 +480,7 @@ kms_face_detect_process_frame(KmsFaceDetect *face_detect,int width,int height,do
 	    face_detect->priv->frames_with_no_detection +=1;
 	  else //delete all the faces
 	    {
-	      face_detect->priv->frames_with_no_detection +=1;
+	      face_detect->priv->frames_with_no_detection =0;
 	      faces->clear(); 	    	    
 	    }
 	} 

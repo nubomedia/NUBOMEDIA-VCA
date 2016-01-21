@@ -30,7 +30,6 @@
 		<url>https://github.com/VictorHidalgoVT/NUBOMEDIA-VCA</url>
 		<connection>scm:git:https://github.com/VictorHidalgoVT/NUBOMEDIA-VCA</connection>
 		<developerConnection>scm:git://git@github.com:VictorHidalgoVT/NUBOMEDIA-VCA</developerConnection>		
-		<developerConnection>scm:git://
 		<tag>master</tag>
 	</scm>
 
