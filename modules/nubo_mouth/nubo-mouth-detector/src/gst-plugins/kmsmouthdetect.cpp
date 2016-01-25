@@ -106,8 +106,7 @@ struct _KmsMouthDetectPrivate {
 G_DEFINE_TYPE_WITH_CODE (KmsMouthDetect, kms_mouth_detect,
                          GST_TYPE_VIDEO_FILTER,
                          GST_DEBUG_CATEGORY_INIT (kms_mouth_detect_debug_category,
-						  PLUGIN_NAME, 0,
-						  
+						  PLUGIN_NAME, 0,						  
 						  "debug category for sample_filter element") );
 
 #define MULTI_SCALE_FACTOR(scale) (1 + scale*1.0/100)
@@ -448,7 +447,6 @@ static vector<Rect> *__merge_mouths_consecutives_frames(vector<Rect> *cm, vector
 					       Rect &face_cord, int scale)
 {
   vector<Rect>::iterator it_m ;
-  FILE *f;
   vector<Rect> *res = new vector<Rect>;
 
   res->clear();
@@ -700,7 +698,7 @@ kms_mouth_detect_init (KmsMouthDetect *
   mouth_detect->priv->faces= new vector<Rect>;
   mouth_detect->priv->mouths= new vector<Rect>;
   mouth_detect->priv->num_frames_to_process=0;
-
+  
   mouth_detect->priv->process_x_every_4_frames=PROCESS_ALL_FRAMES;
   mouth_detect->priv->num_frame=0;
   mouth_detect->priv->scale_factor=DEFAULT_SCALE_FACTOR;
