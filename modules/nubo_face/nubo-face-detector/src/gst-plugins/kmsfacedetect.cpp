@@ -151,10 +151,10 @@ static void kms_face_send_event(KmsFaceDetect *face_detect,GstVideoFrame *frame,
   message= gst_structure_new_empty("message");
   ts=gst_structure_new("time",
 		       "pts",G_TYPE_UINT64, GST_BUFFER_PTS(frame->buffer),NULL);
-	
+
   gst_structure_set(message,"timestamp",GST_TYPE_STRUCTURE, ts,NULL);
   gst_structure_free(ts);
-		
+
   for( vector<Rect>::const_iterator r = fd->begin(); r != fd->end(); r++,i++ )
     {
       face = gst_structure_new("face",
@@ -210,7 +210,7 @@ kms_face_detect_conf_images (KmsFaceDetect *face_detect,
 {
 
   face_detect->priv->img_height = frame->info.height;
-  face_detect->priv->img_width  = frame->info.width;
+  face_detect->priv->img_width  = frame->info.width; 
 
   if ( ((face_detect->priv->img_orig != NULL)) &&
        ((face_detect->priv->img_orig->width != frame->info.width)
@@ -248,9 +248,7 @@ kms_face_detect_set_property (GObject *object, guint property_id,
   switch (property_id) {
 
   case PROP_VIEW_FACES:
-
     face_detect->priv->show_faces =  g_value_get_int (value);
-
     break;
 
   case PROP_DETECT_BY_EVENT:
@@ -272,7 +270,7 @@ kms_face_detect_set_property (GObject *object, guint property_id,
   case PROP_MULTI_SCALE_FACTOR:
     face_detect->priv->scale_factor = g_value_get_int(value);
     break;
-   
+
   case PROP_EUCLIDEAN_THRESHOLD:
     face_detect->priv->euclidean_threshold = g_value_get_int(value);
     break;
