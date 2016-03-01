@@ -82,8 +82,7 @@ void BaseFace::draw_face_in_image(CvArr *img, int scale=1, int iter=0)
 }
 
 void BaseFace::print()
-{
-  
+{  
   cout << "Face id: "<< id <<  " (x,y): " << face.x << "," << face.y;
   cout << " Size (width,height): " << face.width << "," << face.height << endl;
   cout << "center x,y: " << center_p.x << "," << center_p.y << endl;

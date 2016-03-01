@@ -8,7 +8,7 @@ echo "Service [$APP_NAME] - [$1]"
 APP_HOME=/var/lib/kurento
 APP_NAME=nubo-mouth-detector
 APP_JAR=NuboMouthJava
-APP_VERSION=6.1.0-SNAPSHOT
+APP_VERSION=6.4.0
 APP=$APP_NAME-$APP_VERSION
 APP_PORT=8103
 CONSOLE_LOG=/var/log/kurento-media-server/$APP_NAME.log

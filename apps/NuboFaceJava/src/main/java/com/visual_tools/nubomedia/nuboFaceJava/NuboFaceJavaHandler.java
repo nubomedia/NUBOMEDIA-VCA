@@ -87,8 +87,8 @@ public class NuboFaceJavaHandler extends TextWebSocketHandler {
 	    setWidthToProcess(session,jsonMessage);
 	    break;	    
 	case "get_stats":			
-		getStats(session);
-		break;
+	    getStats(session);
+	    break;
 	case "euclidean_dis":
 		setEuclideanDistance(session,jsonMessage);
 		break;
@@ -120,6 +120,7 @@ public class NuboFaceJavaHandler extends TextWebSocketHandler {
 	}
 
 	default:
+	    System.out.println("Error in handle text message....");
 	    sendError(session,
 		      "Invalid message with id "
 		      + jsonMessage.get("id").getAsString());
@@ -292,8 +293,9 @@ public class NuboFaceJavaHandler extends TextWebSocketHandler {
     {
     	
     	try {
-    		Map<String,Stats> wr_stats= webRtcEndpoint.getStats();
-    	
+
+	    Map<String,Stats> wr_stats= webRtcEndpoint.getStats();
+
     		for (Stats s :  wr_stats.values()) {
     		
     			switch (s.getType()) {		
@@ -303,8 +305,8 @@ public class NuboFaceJavaHandler extends TextWebSocketHandler {
     				
     				JsonObject response = new JsonObject();
     				response.addProperty("id", "videoE2Elatency");
-    				response.addProperty("message", e2eVideLatency);				
-    				session.sendMessage(new TextMessage(response.toString()));				
+    				response.addProperty("message", e2eVideLatency);
+				session.sendMessage(new TextMessage(response.toString()));    	
     				break;
 	
     			default:	

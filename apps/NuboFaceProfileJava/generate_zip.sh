@@ -1,7 +1,7 @@
 #!/bin/sh
 
 APP_NAME=NuboFaceProfileJava
-VERSION=6.1.0
+VERSION=6.4.0
 DIR_INSTALL=apps_install
 
 mkdir -p ../$DIR_INSTALL

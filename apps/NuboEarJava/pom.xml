@@ -4,7 +4,7 @@
 	<parent>
 		<groupId>com.visual-tools.nubomedia</groupId>
 		<artifactId>nubomedia-vca-parent-pom</artifactId>
-		<version>6.1.0</version>
+		<version>6.4.0</version>
 	</parent>
 
 	<artifactId>NuboEarJava</artifactId>
@@ -73,7 +73,7 @@
 		<dependency>
 			<groupId>com.visual-tools.nubomedia</groupId>
 			<artifactId>nuboeardetector</artifactId>
-			<version>0.0.5</version>
+			<version>6.4.0</version>
 		</dependency>
 	</dependencies>
 

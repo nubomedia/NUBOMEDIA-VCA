@@ -810,7 +810,7 @@ kms_eye_detect_transform_frame_ip (GstVideoFilter *filter,
   
   struct timeval  start,end;
   gettimeofday(&start,NULL);
-
+  
   
   gst_buffer_map (frame->buffer, &info, GST_MAP_READ);
   //setting up images
@@ -837,13 +837,14 @@ kms_eye_detect_transform_frame_ip (GstVideoFilter *filter,
 
     gettimeofday(&end,NULL);
 
-  unsigned long long time_start= (((float)start.tv_sec * 1000.0) + (float(start.tv_usec)/1000.0));
+    unsigned long long time_start= (((float)start.tv_sec * 1000.0) + (float(start.tv_usec)/1000.0));
   unsigned long long time_end=  (((float)end.tv_sec * 1000.0) + (float(end.tv_usec)/1000.0));
   unsigned long long total_time = time_end - time_start;
 
-  FILE *f = fopen("/tmp/eye_detector.log","a+");
-  fprintf(f,"Iteration time %llu \n",total_time);
-  fclose(f);
+  /*FILE *f = fopen("/tmp/eye_detector.log","a+");
+  //fprintf(f,"Iteration time %llu \n",total_time);
+  fprintf(f,"Nothing to  do !!! \n");
+  fclose(f);*/
 
   return GST_FLOW_OK;
 }

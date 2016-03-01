@@ -148,7 +148,7 @@ void Faces::track_faces(Faces *cf,int track_threshold, int pos_threshold, int ar
   delete faces;
   faces = new_v;
 
-  this->print();
+  //this->print();
 
 }
 
