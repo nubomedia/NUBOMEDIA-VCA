@@ -1,0 +1,16 @@
+
+-------------------------------------------------------Release notes below this line
+
+
+6.4.0
+=====
+
+  * Update filters to kurento version 6.4.0
+  * Update apps to kurento version 6.4.0
+  * Modification of the face filter in order to avoid vibrations in the detection
+  * Modification of the mouth filter in order to avoid vibrations in the detection
+  * Modification of the nose filter in order to avoid vibrations in the detection
+  * Modification of the eye filter in order to avoid vibrations in the detection
+  * Modification of the face profile filter in order to avoid vibrations in the detection
+  * Measure the end 2 end latency in all the applications.
+
