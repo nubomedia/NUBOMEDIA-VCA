@@ -1,10 +1,8 @@
 package com.visual_tools.nubomedia.nuboMouthJava;
 
-import org.kurento.client.KurentoClient;
 import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 import org.springframework.web.socket.config.annotation.EnableWebSocket;
 import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
@@ -16,30 +14,24 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
  * @since 5.0.0
  */
 
-@Configuration
+@SpringBootApplication
 @EnableWebSocket
-@EnableAutoConfiguration
+
 public class NuboMouthJavaApp implements WebSocketConfigurer {
 
-	final static String DEFAULT_KMS_WS_URI = "ws://localhost:8888/kurento";
-	
-	@Bean
-	public NuboMouthJavaHandler handler() {
-		return new NuboMouthJavaHandler();
-	}
-
-	@Bean
-	public KurentoClient kurentoClient() {
-		return KurentoClient.create(System.getProperty("kms.ws.uri",
-				DEFAULT_KMS_WS_URI));
-	}
-
-	@Override
-	public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
-		registry.addHandler(handler(), "/nubomouthdetector");
-	}
-
-	public static void main(String[] args) throws Exception {
-		new SpringApplication(NuboMouthJavaApp.class).run(args);
-	}
+    //final static String DEFAULT_KMS_WS_URI = "wss://localhost:8433/kurento";
+    
+    @Bean
+    public NuboMouthJavaHandler handler() {
+	return new NuboMouthJavaHandler();
+    }
+    
+    @Override
+    public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
+	registry.addHandler(handler(), "/nubomouthdetector");
+    }
+    
+    public static void main(String[] args) throws Exception {
+	new SpringApplication(NuboMouthJavaApp.class).run(args);
+    }
 }

@@ -43,7 +43,9 @@
 	</developers>
 
 	<properties>
-	  <!-- <demo.port>8100</demo.port> -->
+	  <!-- Nubomedia -->
+	  <nubomedia-media-client.version>1.0.1</nubomedia-media-client.version>
+	  
 	  <!-- Main class -->
 	  <start-class>com.visual_tools.nubomedia.nuboFaceJava.NuboFaceJavaApp</start-class>
 
@@ -63,16 +65,27 @@
 		<dependency>
 			<groupId>org.kurento</groupId>
 			<artifactId>kurento-client</artifactId>
+			<version>6.4.0</version>
 		</dependency>
 		<dependency>
 			<groupId>org.kurento</groupId>
 			<artifactId>kurento-utils-js</artifactId>
-		</dependency>
+		</dependency>	
+
+		<!-- Nubomedia -->
 		<dependency>
-			<groupId>com.visual-tools.nubomedia</groupId>
-			<artifactId>nubofacedetector</artifactId>
-			<version>6.4.0</version>
+		  <groupId>com.visual-tools.nubomedia</groupId>
+		  <artifactId>nubofacedetector</artifactId>
+		  <version>6.4.0</version>
 		</dependency>
+
+		<dependency>
+		  <groupId>de.fhg.fokus.nubomedia</groupId>
+		  <artifactId>nubomedia-media-client</artifactId>
+		  <version>${nubomedia-media-client.version}</version>
+		</dependency>
+
+
 	</dependencies>
 
 	<build>

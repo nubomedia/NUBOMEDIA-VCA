@@ -54,6 +54,8 @@ struct _KmsFaceDetect
 struct _KmsFaceDetectClass
 {
   GstVideoFilterClass base_face_detect_class;
+  /* Signals */
+  //void (*face_event) (KmsFaceDetect * self, const gchar *sess_idm , guint str_id );
 };
 
 GType kms_face_detect_get_type (void);

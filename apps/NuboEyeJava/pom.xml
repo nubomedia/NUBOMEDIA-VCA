@@ -43,12 +43,10 @@
 	</developers>
 
 	<properties>		
-		<!-- Main class -->
-		<!-- <demo.port>8103</demo.port> -->
-		<!-- <demo.port>8104</demo.port> -->
-		<start-class>com.visual_tools.nubomedia.nuboEyeJava.NuboEyeJavaApp</start-class>
-		
-
+	  <!-- Nubomedia -->
+	  <nubomedia-media-client.version>1.0.1</nubomedia-media-client.version>
+	  <!-- Main class -->
+	  <start-class>com.visual_tools.nubomedia.nuboEyeJava.NuboEyeJavaApp</start-class>
 	</properties>
 
 	<dependencies>
@@ -70,11 +68,21 @@
 			<groupId>org.kurento</groupId>
 			<artifactId>kurento-utils-js</artifactId>
 		</dependency>
+		
+		<!-- Nubomedia -->
+
 		<dependency>
-			<groupId>com.visual-tools.nubomedia</groupId>
-			<artifactId>nuboeyedetector</artifactId>
-			<version>6.4.0</version>
+		  <groupId>com.visual-tools.nubomedia</groupId>
+		  <artifactId>nuboeyedetector</artifactId>
+		  <version>6.4.0</version>
 		</dependency>
+
+		<dependency>
+		  <groupId>de.fhg.fokus.nubomedia</groupId>
+		  <artifactId>nubomedia-media-client</artifactId>
+		  <version>${nubomedia-media-client.version}</version>
+		</dependency>
+
 	</dependencies>
 
 	<build>

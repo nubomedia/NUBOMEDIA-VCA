@@ -7,6 +7,7 @@
 #include "NuboFaceDetectorImpl.hpp"
 #include <jsonrpc/JsonSerializer.hpp>
 #include <KurentoException.hpp>
+#include <SignalHandler.hpp>
 
 #define GST_CAT_DEFAULT kurento_nubo_face_detector_impl
 GST_DEBUG_CATEGORY_STATIC (GST_CAT_DEFAULT);
@@ -91,6 +92,29 @@ namespace kurento
 	g_object_set(G_OBJECT (nubo_face),AREA_THRESHOLD , threshold, NULL);
       }
 
+      void NuboFaceDetectorImpl::onFaceEvent (int *message)
+      {
+	int i=1;
+	try {
+	  OnFaceEvent event (shared_from_this(), FaceEvent::getName(), i );	  
+	  signalOnFaceEvent (event);
+	}
+	catch (std::bad_weak_ptr &e) {
+	}
+      }
+    
+      void NuboFaceDetectorImpl::postConstructor ()
+      {
+	BaseRtpEndpointImpl::postConstructor ();
+	handlerOnFaceEvent = register_signal_handler (G_OBJECT (element),
+			     "on-face-event",
+			      std::function <void (GstElement *, gchar *, guint) >
+			      (std::bind (&NuboFaceDetectorImpl::onFaceEvent, this,
+					  std::placeholders::_2, std::placeholders::_3) ),
+			      std::dynamic_pointer_cast<NuboFaceDetectorImpl>
+						      (shared_from_this()));          
+      }
+
       MediaObjectImpl *
       NuboFaceDetectorImplFactory::createObject (const boost::property_tree::ptree &config, std::shared_ptr<MediaPipeline> mediaPipeline) const
       {
@@ -105,7 +129,13 @@ namespace kurento
 	GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, GST_DEFAULT_NAME, 0,
 				 GST_DEFAULT_NAME);
       }
-
+      
+      NuboFaceDetectorImpl::~NuboFaceDetectorImpl()
+      {        
+	if ( handlerOnFaceEvent > 0) {
+	  unregister_signal_handler (element, handlerOnFaceEvent);
+	}
+      }
     } /* nubofacedetector */
   } /* module */
 } /* kurento */

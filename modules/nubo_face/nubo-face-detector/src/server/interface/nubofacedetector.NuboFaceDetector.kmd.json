@@ -126,7 +126,25 @@
 		}
 
 		
+	    ],
+	    "events": [
+		"OnFaceEvent"
 	    ]
+	}
+    ],
+
+    "events": [
+	{
+	    "name": "OnFaceEvent",
+	    "doc": "Evente periodically generated when we have information about the faces",
+	    "extends": "Media",
+	    "properties": [
+		{
+		    "name": "numFaces",
+		    "doc":  "Number of faces detected on the image",
+		    "type": "int"
+		}
+	    ]	    
 	}
     ]
 }

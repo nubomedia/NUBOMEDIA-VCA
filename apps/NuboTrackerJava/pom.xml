@@ -43,8 +43,10 @@
 	</developers>
 
 	<properties>
-		<!-- Main class -->
-		<start-class>com.visual_tools.nubomedia.nuboTrackerJava.NuboTrackerJavaApp</start-class>
+	  <!-- Nubomedia -->
+	  <nubomedia-media-client.version>1.0.1</nubomedia-media-client.version>
+	  <!-- Main class -->
+	  <start-class>com.visual_tools.nubomedia.nuboTrackerJava.NuboTrackerJavaApp</start-class>
 	</properties>
 
 	<dependencies>
@@ -62,15 +64,25 @@
 			<groupId>org.kurento</groupId>
 			<artifactId>kurento-client</artifactId>
 		</dependency>
+
 		<dependency>
 			<groupId>org.kurento</groupId>
 			<artifactId>kurento-utils-js</artifactId>
 		</dependency>
+		
+		<!-- Nubomedia -->
 		<dependency>
 			<groupId>com.visual-tools.nubomedia</groupId>
 			<artifactId>nubotracker</artifactId>
 			<version>6.4.0</version>
 		</dependency>
+
+		<dependency>
+		  <groupId>de.fhg.fokus.nubomedia</groupId>
+		  <artifactId>nubomedia-media-client</artifactId>
+		  <version>${nubomedia-media-client.version}</version>
+		</dependency>
+		
 	</dependencies>
 
 	<build>

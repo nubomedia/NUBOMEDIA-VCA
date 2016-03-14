@@ -60,6 +60,12 @@ enum {
   PROP_SHOW_DEBUG_INFO
 };
 
+/*static guint kms_face_detector_signals[LAST_SIGNAL] = { 0 };
+
+enum {
+  SIGNAL_ON_FACE_EVENT,
+  LAST_SIGNAL
+  }*/
 
 struct _KmsFaceDetectPrivate {
 
@@ -134,6 +140,16 @@ kms_face_detect_init_cascade()
 
   return 0;
 }
+
+/*static void
+on_face_event (KmsFaceDetect *self)
+{
+  KmsSdpSession *sdp_sess = KMS_SDP_SESSION (sess);
+  gchar *message="Test events";
+  g_signal_emit (G_OBJECT (self),
+      kms_webrtc_endpoint_signals[SIGNAL_ON_FACE_EVENT], 0,
+      message, 1);
+}*/
 
 static void kms_face_send_event(KmsFaceDetect *face_detect,GstVideoFrame *frame, int width2process)
 {
@@ -612,6 +628,12 @@ kms_face_detect_init (KmsFaceDetect *
 					    face_detect->priv->cv_mem_storage);
   face_detect->priv->show_faces = 0;
   
+  gchar *message="Hola";
+
+  /*g_signal_connect (message, "on-face-event",
+    G_CALLBACK (face_event), self);*/
+
+  
   if (cascade.empty())
     if (kms_face_detect_init_cascade() < 0)
       std::cout << "Error: init cascade" << std::endl;
@@ -704,6 +726,13 @@ g_object_class_install_property (gobject_class,   PROP_AREA_THRESHOLD,
     GST_DEBUG_FUNCPTR (kms_face_detect_transform_frame_ip);
 
   /*Properties initialization*/
+  /*kms_face_detector_signals[SIGNAL_ON_FACE_EVENT] =
+    g_signal_new ("on-face-event",
+		  G_TYPE_FROM_CLASS (klass),
+		  G_SIGNAL_RUN_LAST,
+		  G_STRUCT_OFFSET (KmsFaceDetectPrivate, face_event), NULL, NULL,
+		  __kms_core_marshal_VOID__VOID, G_TYPE_NONE, 2, G_TYPE_STRING,GTYPE_UINT);*/
+  
   g_type_class_add_private (face, sizeof (KmsFaceDetectPrivate) );
 
   face->base_face_detect_class.parent_class.sink_event =

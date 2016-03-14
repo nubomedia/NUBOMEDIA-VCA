@@ -13,7 +13,7 @@
  *
  */
 
-var ws = new WebSocket('ws://' + location.host + '/nubomouthdetector');
+var ws = new WebSocket('wss://' + location.host + '/nubomouthdetector');
 var videoInput;
 var videoOutput;
 var webRtcPeer;

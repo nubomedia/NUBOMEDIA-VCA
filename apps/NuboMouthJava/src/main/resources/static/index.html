@@ -153,17 +153,17 @@
 	<div class="col-md-5">
 	  <h3>Local stream</h3>
 	  <video id="videoInput" autoplay width="480px" height="360px"
-		 poster="./img/webrtc.png"></video>
+		 poster="./img/webrtc.png" class="img-responsive"></video>
 	</div>
 	<div class="col-md-5">
 	  <h3>Remote stream</h3>
 	  <video id="videoOutput" autoplay width="480px" height="360px"
-		 poster="./img/webrtc.png"></video>
+		 poster="./img/webrtc.png" class="img-responsive"></video>
 	</div>
       </div>
       
       <div class="row" align="left">
-	&nbsp; &nbsp; <input id="videoE2Elatency" type="checkbox"  required name="terms" onchange="show_latency()"><span id="testVideoE2Elatency">  VideoE2ELatency (ms): </span>  
+	&nbsp; &nbsp; <input id="videoE2Elatency" type="checkbox"  required name="terms" onchange="show_latency()" ><span id="testVideoE2Elatency" >  VideoE2ELatency (ms): </span>  
       </div>      
 
       <div class="row">
@@ -205,6 +205,26 @@
 	</div>
       </div>
     </footer>
+
+    <div id="resourcesDialog" class="modal fade" role="dialog">
+      <div class="modal-dialog">
+	<!-- Modal content-->
+	<div class="modal-content">
+	  <div class="modal-header">
+	    <button type="button" class="close" data-dismiss="modal">&times;</button>
+	    <h4 class="modal-title">Not Enough Resources</h4>
+	  </div>
+	  <div class="modal-body">
+	    <p>At this moment the system is using its 100% of resources.
+	      Please, try to start a media session later.</p>
+	  </div>
+	  <div class="modal-footer">
+	    <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+	  </div>
+	</div>
+	
+      </div>
+    </div>
 
   </body>
 </html>

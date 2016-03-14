@@ -1,37 +1,68 @@
 package com.visual_tools.nubomedia.nuboEarJava;
 
 import org.kurento.client.IceCandidate;
+import org.kurento.client.KurentoClient;
 import org.kurento.client.MediaPipeline;
 import org.kurento.client.WebRtcEndpoint;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.gson.JsonObject;
 
 public class UserSession {
-	private WebRtcEndpoint webRtcEndpoint;
-	private MediaPipeline mediaPipeline;
+    private final Logger log = LoggerFactory.getLogger(UserSession.class);
+    
+    private WebRtcEndpoint webRtcEndpoint;
+    private MediaPipeline mediaPipeline;
+    private KurentoClient kurentoClient;
+    private String sessionId;
+    
 
-	UserSession() {
-	}
+    public UserSession(String sessionId) {
+	this.sessionId = sessionId;
+	
+	// One KurentoClient instance per session
+	kurentoClient = KurentoClient.create();
+	log.info("Created kurentoClient (session {})", sessionId);
 
-	public WebRtcEndpoint getWebRtcEndpoint() {
-		return webRtcEndpoint;
-	}
+	mediaPipeline = getKurentoClient().createMediaPipeline();
+	log.info("Created Media Pipeline {} (session {})", getMediaPipeline().getId(), sessionId);
+	
+	webRtcEndpoint = new WebRtcEndpoint.Builder(getMediaPipeline()).build();
+    }
 
-	public void setWebRtcEndpoint(WebRtcEndpoint webRtcEndpoint) {
-		this.webRtcEndpoint = webRtcEndpoint;
-	}
-
-	public MediaPipeline getMediaPipeline() {
-		return mediaPipeline;
-	}
-
-	public void setMediaPipeline(MediaPipeline mediaPipeline) {
-		this.mediaPipeline = mediaPipeline;
-	}
-
-	public void addCandidate(IceCandidate i) {
-		webRtcEndpoint.addIceCandidate(i);
-	}
-
-	public void release() {
-		this.mediaPipeline.release();
-	}
+    public WebRtcEndpoint getWebRtcEndpoint() {
+	return webRtcEndpoint;
+    }
+    
+    
+    public MediaPipeline getMediaPipeline() {
+	return mediaPipeline;
+    }
+    
+    public KurentoClient getKurentoClient() {
+	return kurentoClient;
+    }
+    
+    public void addCandidate(IceCandidate candidate) {
+	getWebRtcEndpoint().addIceCandidate(candidate);
+    }
+    
+    public void addCandidate(JsonObject jsonCandidate) {
+	IceCandidate candidate = new IceCandidate(jsonCandidate.get("candidate").getAsString(),
+	jsonCandidate.get("sdpMid").getAsString(), jsonCandidate.get("sdpMLineIndex").getAsInt());
+	getWebRtcEndpoint().addIceCandidate(candidate);
+    }
+       
+    
+    public void release() {
+	log.info("Releasing media pipeline {}(session {})", getMediaPipeline().getId(), sessionId);
+	getMediaPipeline().release();
+	log.info("Destroying kurentoClient (session {})", sessionId);
+	getKurentoClient().destroy();
+    }
+    
+    public String getSessionId() {
+	return sessionId;
+    }	    
 }

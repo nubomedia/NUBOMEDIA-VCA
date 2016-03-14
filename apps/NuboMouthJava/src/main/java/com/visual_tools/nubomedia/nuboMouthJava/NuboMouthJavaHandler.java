@@ -3,26 +3,24 @@ package com.visual_tools.nubomedia.nuboMouthJava;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-
 import org.kurento.client.EventListener;
-import org.kurento.client.IceCandidate;
 import org.kurento.client.KurentoClient;
-import org.kurento.client.MediaPipeline;
-import org.kurento.client.OnIceCandidateEvent;
+import org.kurento.client.OnIceCandidateEvent; 
 import org.kurento.client.WebRtcEndpoint;
 import org.kurento.jsonrpc.JsonUtils;
-import org.kurento.module.nubomouthdetector.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.kurento.client.internal.NotEnoughResourcesException; 
+import org.slf4j.Logger; 
+import org.slf4j.LoggerFactory; 
 import org.springframework.web.socket.TextMessage;
-import org.springframework.web.socket.WebSocketSession;
-import org.springframework.web.socket.handler.TextWebSocketHandler;
-import org.kurento.client.EndpointStats;
-import org.kurento.client.Stats;
+import org.springframework.web.socket.WebSocketSession; 
+import org.springframework.web.socket.handler.TextWebSocketHandler; 
+import org.kurento.client.EndpointStats; 
+import org.kurento.client.Stats; 
+import org.springframework.web.socket.CloseStatus; 
+import org.kurento.module.nubomouthdetector.*;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import com.google.gson.Gson; 
+import com.google.gson.GsonBuilder; 
 import com.google.gson.JsonObject;
 
 /**
@@ -38,11 +36,7 @@ public class NuboMouthJavaHandler extends TextWebSocketHandler {
 
     private final ConcurrentHashMap<String, UserSession> users = new ConcurrentHashMap<String, UserSession>();
 
-    @Autowired
-    private KurentoClient kurento;
-
-    private MediaPipeline pipeline = null;
-    private WebRtcEndpoint webRtcEndpoint = null;
+    private  WebRtcEndpoint webRtcEndpoint = null;
     private NuboMouthDetector mouth = null;
     private int visualizeMouth = -1;
 
@@ -84,61 +78,42 @@ public class NuboMouthJavaHandler extends TextWebSocketHandler {
 	    break;
 	}
 	case "onIceCandidate": {
-	    JsonObject candidate = jsonMessage.get("candidate")
-		.getAsJsonObject();
+	    JsonObject candidate = jsonMessage.get("candidate").getAsJsonObject();
 
 	    UserSession user = users.get(session.getId());
 	    if (user != null) {
-		IceCandidate cand = new IceCandidate(candidate.get("candidate")
-						     .getAsString(), candidate.get("sdpMid").getAsString(),
-						     candidate.get("sdpMLineIndex").getAsInt());
-		user.addCandidate(cand);
+		user.addCandidate(candidate);
 	    }
 	    break;
 	}
 
 	default:
-	    sendError(session,
-		      "Invalid message with id "
-		      + jsonMessage.get("id").getAsString());
+	    error(session,"Invalid message with id " + jsonMessage.get("id").getAsString());
 	    break;
 	}
     }
 
     private void start(final WebSocketSession session, JsonObject jsonMessage) {
 	try {
-	    // Media Logic (Media Pipeline and Elements)
-	    UserSession user = new UserSession();
-	    pipeline = kurento.createMediaPipeline();
-	    pipeline.setLatencyStats(true);
-	    user.setMediaPipeline(pipeline);
-	    webRtcEndpoint = new WebRtcEndpoint.Builder(pipeline)
-		.build();
-	    user.setWebRtcEndpoint(webRtcEndpoint);
-	    users.put(session.getId(), user);
+	  
+	    String sessionId = session.getId();
+	    UserSession user = new UserSession(sessionId);
+	    users.put(sessionId,user);
+	    webRtcEndpoint = user.getWebRtcEndpoint();
+	    
+	    //Ice Candidate
+	    webRtcEndpoint.addOnIceCandidateListener(new EventListener<OnIceCandidateEvent>() {
+	      @Override
+		  public void onEvent(OnIceCandidateEvent event) {
+		  JsonObject response = new JsonObject();
+		  response.addProperty("id", "iceCandidate");
+		  response.add("candidate", JsonUtils.toJsonObject(event.getCandidate()));
+		  sendMessage(session, new TextMessage(response.toString()));
+	      }
+	    });
 
-	    webRtcEndpoint
-		.addOnIceCandidateListener(new EventListener<OnIceCandidateEvent>() {
-
-			@Override
-			    public void onEvent(OnIceCandidateEvent event) {
-			    JsonObject response = new JsonObject();
-			    response.addProperty("id", "iceCandidate");
-			    response.add("candidate", JsonUtils
-					 .toJsonObject(event.getCandidate()));
-			    try {
-				synchronized (session) {
-				    session.sendMessage(new TextMessage(
-									response.toString()));
-				}
-			    } catch (IOException e) {
-				log.debug(e.getMessage());
-			    }
-			}
-		    });
-
-	    mouth = new NuboMouthDetector.Builder(pipeline).build();
-
+	    /******** Media Logic ********/
+	    mouth = new NuboMouthDetector.Builder(user.getMediaPipeline()).build();
 			
 	    webRtcEndpoint.connect(mouth);
 	    mouth.connect(webRtcEndpoint);
@@ -153,14 +128,29 @@ public class NuboMouthJavaHandler extends TextWebSocketHandler {
 	    response.addProperty("sdpAnswer", sdpAnswer);
 
 	    synchronized (session) {
-		session.sendMessage(new TextMessage(response.toString()));
+		sendMessage(session,new TextMessage(response.toString()));
 	    }
 	    webRtcEndpoint.gatherCandidates();
 
-	} catch (Throwable t) {
-	    sendError(session, t.getMessage());
+	} catch (NotEnoughResourcesException e) {
+	    log.warn("Not enough resources", e);
+	    notEnoughResources(session);	    
+	}
+	catch (Throwable t) {
+	    log.error("Exception starting session", t);
+	    error(session, t.getClass().getSimpleName() + ": " + t.getMessage());
 	}
     }
+
+    private void notEnoughResources(WebSocketSession session) {
+	// 1. Send notEnoughResources message to client
+	JsonObject response = new JsonObject();
+	response.addProperty("id", "notEnoughResources");
+	sendMessage(session, new TextMessage(response.toString()));
+	
+	// 2. Release media session
+	release(session);
+    } 
 
     private void setVisualization(WebSocketSession session,JsonObject jsonObject)
     {
@@ -171,7 +161,7 @@ public class NuboMouthJavaHandler extends TextWebSocketHandler {
 		mouth.showMouths(visualizeMouth);
 
 	} catch (Throwable t){
-	    sendError(session,t.getMessage());
+	    error(session, t.getClass().getSimpleName() + ": " + t.getMessage());
 	}
     }
 
@@ -188,7 +178,7 @@ public class NuboMouthJavaHandler extends TextWebSocketHandler {
 		}
 	    
 	} catch (Throwable t){
-	    sendError(session,t.getMessage());
+	    error(session, t.getClass().getSimpleName() + ": " + t.getMessage());
 	}
     }
 
@@ -206,7 +196,7 @@ public class NuboMouthJavaHandler extends TextWebSocketHandler {
  		}
 	    
 	} catch (Throwable t){
-	    sendError(session,t.getMessage());
+	    error(session, t.getClass().getSimpleName() + ": " + t.getMessage());
 	}
     }
 		
@@ -223,48 +213,69 @@ public class NuboMouthJavaHandler extends TextWebSocketHandler {
 		}
 	    
 	} catch (Throwable t){
-	    sendError(session,t.getMessage());
+	    error(session, t.getClass().getSimpleName() + ": " + t.getMessage());
 	}
     } 
 
 
     private void getStats(WebSocketSession session)
     {
-    	
-    	try {
-    		Map<String,Stats> wr_stats= webRtcEndpoint.getStats();
-    	
-    		for (Stats s :  wr_stats.values()) {
-    		
-    			switch (s.getType()) {		
-    			case endpoint:
-    				EndpointStats end_stats= (EndpointStats) s;
-    				double e2eVideLatency= end_stats.getVideoE2ELatency() / 1000000;
-    				
-    				JsonObject response = new JsonObject();
-    				response.addProperty("id", "videoE2Elatency");
-    				response.addProperty("message", e2eVideLatency);				
-    				session.sendMessage(new TextMessage(response.toString()));				
-    				break;
 	
-    			default:	
-    				break;
-    			}				
-    		}
-    	} catch (IOException e) {
-			log.error("Exception sending message", e);
-		}
+    	try {
+	    Map<String,Stats> wr_stats= webRtcEndpoint.getStats();
+		
+	    for (Stats s :  wr_stats.values()) {
+		
+		switch (s.getType()) {		
+		case endpoint:
+		    EndpointStats end_stats= (EndpointStats) s;
+		    double e2eVideLatency= end_stats.getVideoE2ELatency() / 1000000;
+		    
+		    JsonObject response = new JsonObject();
+		    response.addProperty("id", "videoE2Elatency");
+		    response.addProperty("message", e2eVideLatency);				
+		    sendMessage(session,new TextMessage(response.toString()));				
+		    break;
+	
+		default:	
+		    break;
+		}				
+	    }
+    	} catch (Throwable t) {
+	    log.error("Exception getting stats...", t);
+	}
     	
     }
 
-    private void sendError(WebSocketSession session, String message) {
+    private synchronized void sendMessage(WebSocketSession session, TextMessage message) {
 	try {
-	    JsonObject response = new JsonObject();
-	    response.addProperty("id", "error");
-	    response.addProperty("message", message);
-	    session.sendMessage(new TextMessage(response.toString()));
+	    session.sendMessage(message);
 	} catch (IOException e) {
 	    log.error("Exception sending message", e);
 	}
     }
+
+    private void error(WebSocketSession session, String message) {
+
+	JsonObject response = new JsonObject();
+	response.addProperty("id", "error");
+	response.addProperty("message", message);
+	sendMessage(session,new TextMessage(response.toString()));
+	// 2. Release media session
+	release(session);
+    }
+
+    private void release(WebSocketSession session) {
+	UserSession user = users.remove(session.getId());
+	if (user != null) {
+	    user.release();
+	}
+    }
+
+    @Override
+    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
+	log.info("Closed websocket connection of session {}", session.getId());
+	release(session);
+    }
+
 }

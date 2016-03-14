@@ -3,7 +3,8 @@
 #ifndef __NUBO_FACE_DETECTOR_IMPL_HPP__
 #define __NUBO_FACE_DETECTOR_IMPL_HPP__
 
-#include "FilterImpl.hpp"
+//#include "FilterImpl.hpp"
+#include "BaseRtpEndpointImpl.hpp"
 #include "NuboFaceDetector.hpp"
 #include <EventHandler.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -36,14 +37,15 @@ namespace module
 namespace nubofacedetector
 {
 
-class NuboFaceDetectorImpl : public FilterImpl, public virtual NuboFaceDetector
+//class NuboFaceDetectorImpl : public FilterImpl, public virtual NuboFaceDetector
+class NuboFaceDetectorImpl : public BaseRtpEndpointImpl , public virtual NuboFaceDetector
 {
 
 public:
 
   NuboFaceDetectorImpl (const boost::property_tree::ptree &config, std::shared_ptr<MediaPipeline> mediaPipeline);
 
-  virtual ~NuboFaceDetectorImpl () {};
+  virtual ~NuboFaceDetectorImpl ();
 
   void showFaces(int viewFaces);
   void detectByEvent(int event);
@@ -55,6 +57,7 @@ public:
   void trackThreshold(int threshold);
   void areaThreshold(int threshold);
 
+  sigc::signal<void, OnFaceEvent> signalOnFaceEvent;
   /* Next methods are automatically implemented by code generator */
   virtual bool connect (const std::string &eventType, std::shared_ptr<EventHandler> handler);
   virtual void invoke (std::shared_ptr<MediaObjectImpl> obj,
@@ -63,9 +66,17 @@ public:
 
   virtual void Serialize (JsonSerializer &serializer);
 
+/*protected:
+  virtual void postConstructor();*/
+
 private:
 
-  GstElement *nubo_face = NULL;
+  GstElement *nubo_face = NULL; 
+
+  gulong handlerOnFaceEvent = 0;
+  void onFaceEvent (gchar*, guint);
+
+  
   class StaticConstructor
   {
   public:
