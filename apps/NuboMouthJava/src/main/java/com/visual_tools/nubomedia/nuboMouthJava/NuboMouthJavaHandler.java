@@ -52,7 +52,8 @@ public class NuboMouthJavaHandler extends TextWebSocketHandler {
 	case "start":
 	    start(session, jsonMessage);
 	    break;
-	case "show_mouths":	
+	case "show_mouths":
+		System.out.println("----------------Showinggg MOUTHSSSSSSSSSSss--------------------------");
 	    setVisualization(session,jsonMessage);
 	    break;	
 	case "scale_factor":
@@ -114,7 +115,8 @@ public class NuboMouthJavaHandler extends TextWebSocketHandler {
 
 	    /******** Media Logic ********/
 	    mouth = new NuboMouthDetector.Builder(user.getMediaPipeline()).build();
-			
+	    mouth.activateServerEvents(1, 3000);
+	    addMouthListener();
 	    webRtcEndpoint.connect(mouth);
 	    mouth.connect(webRtcEndpoint);
 
@@ -142,6 +144,19 @@ public class NuboMouthJavaHandler extends TextWebSocketHandler {
 	}
     }
 
+
+    private void addMouthListener()
+    {    	
+    	mouth.addOnMouthListener(new EventListener<OnMouthEvent>() {
+	    	@Override
+    		public void onEvent(OnMouthEvent event)
+    		{
+	    		System.out.println("----------------Mouth Detected--------------------------");
+    		}	    	
+		});
+
+    }
+
     private void notEnoughResources(WebSocketSession session) {
 	// 1. Send notEnoughResources message to client
 	JsonObject response = new JsonObject();
@@ -156,9 +171,13 @@ public class NuboMouthJavaHandler extends TextWebSocketHandler {
     {
 
 	try{
+		System.out.println("----------------Let's seee--------------------------");	
 	    visualizeMouth = jsonObject.get("val").getAsInt();
 	    if (null != mouth)
-		mouth.showMouths(visualizeMouth);
+	    {
+	    	System.out.println("---------------- " + visualizeMouth);
+	    	mouth.showMouths(visualizeMouth);
+	    }
 
 	} catch (Throwable t){
 	    error(session, t.getClass().getSimpleName() + ": " + t.getMessage());

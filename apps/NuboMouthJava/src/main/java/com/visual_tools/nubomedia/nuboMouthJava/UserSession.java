@@ -13,7 +13,7 @@ import com.google.gson.JsonObject;
  * User session.
  * 
  * @author Victor Hidalgo (vmhidalgo@visual-tools.com)
- * @since 5.0.0
+ * @since 6.0.0
  */
 public class UserSession {
 
