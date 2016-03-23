@@ -70,8 +70,76 @@
 			    "type": "int"
 			}
 		    ]
-		} 			
+		}, 
+		{
+		    "name": "activateServerEvents",
+		    "doc": "The events will be launched to the server with the information about the mouth detected.  milliseconds indicate the frequency with which events will be launched (0 millisecons => an event will be lauched, when there is some information",
+		    "params": [
+			{
+			    "name":"activate", 
+			    "doc":"1=>activate it, 0 desactivated",
+			    "type": "int"
+			},
+			{
+			    "name":"time", 
+			    "doc":"the frequency in ms to send the events",
+			    "type": "int"
+			}
+		    ]
+		}			
+	    ],
+	    "events": [
+		"OnTracker"
+	    ]
+	}
+    ], 
+    "events": [
+	{
+	    "name": "OnTracker",
+	    "extends": "Media",
+	    "doc": "Information about the motion object detected",
+	    "properties": [
+		{
+		    "name": "motionObject",
+		    "doc": "info about the motion object detected",
+		    "type": "TrackerInfo[]"
+		}
+	    ]
+	}
+    ],
+    "complexTypes": [
+	{
+	    "typeFormat": "REGISTER",
+	    "name": "TrackerInfo",
+	    "doc": "TrackerInfo contains information about the detected objects",
+	    "properties": [
+		{
+		    "name": "name",
+		    "doc": "This value contains the word tracker in order to identify the register",
+		    "type": "String"
+		},
+		{
+		    "name": "x", 
+		    "doc": "represent the x value of the upper left corner of the object ",
+		    "type": "int"
+		},
+		{
+		    "name": "y", 
+		    "doc": "represent the y value of the upper left corner of the object ",
+		    "type": "int"
+		},
+		{
+		    "name": "height",
+		    "doc": "Represent the height of the detected object",
+		    "type": "int"
+		},
+		{
+		    "name": "width",
+		    "doc": "Represent the width of the detected object",
+		    "type": "int"
+		}
 	    ]
 	}
     ]
 }
+ 

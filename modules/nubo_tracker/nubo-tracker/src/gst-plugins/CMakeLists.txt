@@ -1,4 +1,7 @@
+include(GLibHelpers)
+
 include_directories(
+  ${KMSCORE_INCLUDE_DIRS}
   ${GSTREAMER_INCLUDE_DIRS}
   ${GSTREAMER_VIDEO_INCLUDE_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -14,6 +17,7 @@ set(NUBO_TRACKER_SOURCES
 add_library(nubotracker MODULE ${NUBO_TRACKER_SOURCES})
 
 target_link_libraries(nubotracker
+  kmsgstcommons
   ${GSTREAMER_LIBRARIES}
   ${GSTREAMER_VIDEO_LIBRARIES}
   ${OPENCV_LIBRARIES}

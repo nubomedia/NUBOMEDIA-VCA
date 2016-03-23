@@ -4,9 +4,20 @@
 #include <gst/video/video.h>
 #include <gst/video/gstvideofilter.h>
 #include <glib/gstdio.h>
+#include <string>
+#include <unistd.h>
+#include <iostream>
 #include <opencv2/opencv.hpp>
-#include <cv.h>
-#include <memory>
+#include <sys/time.h>
+#include <commons/kmsserializablemeta.h>
+#include <sstream>
+
+#include <commons/kms-core-marshal.h>
+
+#include <time.h>
+#include <stdio.h>
+#include <stdlib.h>
+
 
 #define PLUGIN_NAME "nubotracker"
 #define DEFAULT_THRESHOLD 20
@@ -18,6 +29,8 @@
 #define MAX_TIME_DELTA  0.5
 #define MIN_TIME_DELTA  0.05
 #define SEGMENTATION 32
+#define SERVER_EVENTS 0
+#define EVENTS_MS 30001
 
 using namespace cv;
 
@@ -59,8 +72,18 @@ enum {
   PROP_MIN_AREA,
   PROP_MAX_AREA,
   PROP_DISTANCE,
+  PROP_ACTIVATE_SERVER_EVENTS,
+  PROP_SERVER_EVENTS_MS,
   PROP_VISUAL_MODE
 };
+
+
+enum {
+  SIGNAL_ON_TRACKER_EVENT,
+  LAST_SIGNAL
+};
+
+static guint kms_tracker_detector_signals[LAST_SIGNAL] = { 0 };
 
 struct _GstNuboTrackerPrivate {    
   IplImage *img_orig;
@@ -75,12 +98,23 @@ struct _GstNuboTrackerPrivate {
   int img_height;
   int img_width;
   int num_frames;
+  int server_events;
+  int events_ms;
+  double time_events_ms;
   GRecMutex mutex;
   gboolean debug;
 };
 
 static Mat img_prev;
 
+
+template<typename T>
+string toString(const T& value)
+{
+  std::stringstream ss;
+   ss << value;
+   return ss.str();
+}
 
 static float calc_dist(Point p1, int p1_width, int p1_height ,Point p2, int p2_width, int p2_height)
 {
@@ -210,6 +244,7 @@ gst_nubo_tracker_set_property (GObject *object, guint property_id,
   //Changing values of the properties is a critical region because read/write
   //concurrently could produce race condition. For this reason, the following
   //code is protected with a mutex
+  struct timeval  t;
   GST_NUBO_TRACKER_LOCK (nubo_tracker);
 
   switch (property_id) {
@@ -234,7 +269,17 @@ gst_nubo_tracker_set_property (GObject *object, guint property_id,
   case PROP_VISUAL_MODE:
     nubo_tracker->priv->visual_mode = g_value_get_int(value);
     break;
-
+    
+  case  PROP_ACTIVATE_SERVER_EVENTS:
+    nubo_tracker->priv->server_events = g_value_get_int(value);
+    gettimeofday(&t,NULL);
+    nubo_tracker->priv->time_events_ms= ((t.tv_sec * 1000.0) + ((t.tv_usec)/1000.0));    
+    break;
+    
+  case PROP_SERVER_EVENTS_MS:
+    nubo_tracker->priv->events_ms = g_value_get_int(value);
+    break;   
+    
   default:
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
     break;
@@ -274,6 +319,14 @@ gst_nubo_tracker_get_property (GObject *object, guint property_id,
   case PROP_VISUAL_MODE:
     g_value_set_int(value,nubo_tracker->priv->visual_mode);
     break;
+    
+  case  PROP_ACTIVATE_SERVER_EVENTS:
+    g_value_set_int(value,nubo_tracker->priv->server_events);
+    break;
+    
+  case PROP_SERVER_EVENTS_MS:
+    g_value_set_int(value,nubo_tracker->priv->events_ms);
+    break;
 
   default:
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -296,6 +349,9 @@ static void gst_nubo_tracker_process(GstNuboTracker *tracker)
   double timestamp = 1000.0*clock()/CLOCKS_PER_SEC;
   vector<Rect> seg_bounds;
   ret=(img_orig.clone());
+  std::string tracker_str;
+  struct timeval  end; 
+  double current_t, diff_time;
  
   cvtColor(img_orig,gray,CV_BGR2GRAY);
   
@@ -324,14 +380,38 @@ static void gst_nubo_tracker_process(GstNuboTracker *tracker)
       ret=__join_objects(tracker,seg_bounds);
       
       //draw rectangles
-      if (tracker->priv->visual_mode > 0)
+      if (tracker->priv->visual_mode > 0 || 1 == tracker->priv->server_events)
 	for (unsigned int h = 0; h < seg_bounds.size();h++)
 	{
+	 	  
 	  Rect rec = seg_bounds[h];
-	  cvRectangle(tracker->priv->img_orig,rec.tl(),rec.br(),Scalar(0,0,255),3,8,0);
+	  if (tracker->priv->visual_mode > 0)
+	    cvRectangle(tracker->priv->img_orig,rec.tl(),rec.br(),Scalar(0,0,255),3,8,0);
+
+	  if (1 == tracker->priv->server_events)
+	    {
+	      std::string new_obj ("x:" + toString((guint)  rec.x) + 
+				   ",y:" + toString((guint) rec.y ) + 
+				   ",width:" + toString((guint) rec.width )+ 
+				   ",height:" + toString((guint) rec.height )+ ";");
+	      tracker_str= tracker_str + new_obj;
+	    }
 	}
     }   
   
+  if (seg_bounds.size()>0)
+    {
+      gettimeofday(&end,NULL);
+      current_t= ((end.tv_sec * 1000.0) + ((end.tv_usec)/1000.0));
+      diff_time = current_t - tracker->priv->time_events_ms;
+      
+      if (1 == tracker->priv->server_events && diff_time > tracker->priv->events_ms)
+	{
+	  tracker->priv->time_events_ms=current_t;
+	  g_signal_emit (G_OBJECT (tracker),
+			 kms_tracker_detector_signals[SIGNAL_ON_TRACKER_EVENT], 0,tracker_str.c_str());
+	}
+    }
   if (!(img_prev.empty()))
     img_prev.release();
   
@@ -381,7 +461,11 @@ gst_nubo_tracker_init (GstNuboTracker *nubo_tracker)
  nubo_tracker->priv->num_frames=0;
  nubo_tracker->priv->visual_mode=0;
  nubo_tracker->priv->img_orig=NULL;
+ 
+ nubo_tracker->priv->server_events=SERVER_EVENTS;
+ nubo_tracker->priv->events_ms=EVENTS_MS;
  //nubo_tracker->priv->img_prev=NULL;
+
 }
 
 static void
@@ -447,14 +531,29 @@ gst_nubo_tracker_class_init (GstNuboTrackerClass *tracker)
 						     0,4, FALSE,
 						     (GParamFlags) (G_PARAM_READWRITE) ) );  
   
-
+  g_object_class_install_property (gobject_class,   PROP_ACTIVATE_SERVER_EVENTS,
+				   g_param_spec_int ("activate-events", "Activate Events",
+						     "(0 default) => It will not send events to server, 1 => it will send events to the server", 
+						     0,1,FALSE, (GParamFlags) G_PARAM_READWRITE));
+  
+  g_object_class_install_property (gobject_class,   PROP_SERVER_EVENTS_MS,
+				   g_param_spec_int ("events-ms",  "Activate Events",
+						     "the time, it takes to send events to the servers", 
+						     0,30000,FALSE, (GParamFlags) G_PARAM_READWRITE));
+  
   video_filter_class->transform_frame_ip =
     GST_DEBUG_FUNCPTR (gst_nubo_tracker_transform_frame_ip);
   
-  g_type_class_add_private (tracker, sizeof (GstNuboTrackerPrivate) );
+  kms_tracker_detector_signals[SIGNAL_ON_TRACKER_EVENT] =
+    g_signal_new ("tracker-event",
+		  G_TYPE_FROM_CLASS (tracker),
+		  G_SIGNAL_RUN_LAST,
+		  0, NULL, NULL, NULL,
+		  G_TYPE_NONE, 1, G_TYPE_STRING);
 
-  /*mouth->base_nubo_tracker_class.parent_class.sink_event =
-    GST_DEBUG_FUNCPTR(gst_nubo_mouth_sink_events);*/
+  g_type_class_add_private (tracker, sizeof (GstNuboTrackerPrivate) );
+  
+
 }
 
 gboolean

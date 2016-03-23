@@ -43,25 +43,32 @@ public:
 
   NuboTrackerImpl (const boost::property_tree::ptree &config, std::shared_ptr<MediaPipeline> mediaPipeline);
 
-  virtual ~NuboTrackerImpl () {};
+  virtual ~NuboTrackerImpl ();
 
   void setThreshold(int threshold);
   void setMinArea(int minArea);
   void setMaxArea(float maxArea);
   void setDistance(int distance);
   void setVisualMode(int mode);
+  void activateServerEvents (int activate,int ms);
 
   /* Next methods are automatically implemented by code generator */
+  sigc::signal<void, OnTracker> signalOnTracker;
   virtual bool connect (const std::string &eventType, std::shared_ptr<EventHandler> handler);
   virtual void invoke (std::shared_ptr<MediaObjectImpl> obj,
                        const std::string &methodName, const Json::Value &params,
                        Json::Value &response);
 
   virtual void Serialize (JsonSerializer &serializer);
-
+protected: 
+  virtual void postConstructor ();
 private:
 
   GstElement *nubo_tracker = NULL;
+  gulong handlerOnTrackerEvent = 0;
+  void onTracker (gchar *);
+  void split_message (std::string fi, std::string delimiter, std::vector<std::string> *v);
+
   class StaticConstructor
   {
   public:
