@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-
 import org.kurento.client.EventListener;
 import org.kurento.client.KurentoClient;
 import org.kurento.client.OnIceCandidateEvent; 
@@ -19,7 +18,6 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import org.kurento.client.EndpointStats; 
 import org.kurento.client.Stats; 
 import org.springframework.web.socket.CloseStatus; 
-
 import org.kurento.module.nubonosedetector.*;
 
 import com.google.gson.Gson;
@@ -116,7 +114,8 @@ public class NuboNoseJavaHandler extends TextWebSocketHandler {
 	    /******** Media Logic ********/
 	    
 	    nose = new NuboNoseDetector.Builder(user.getMediaPipeline()).build();
-			
+		nose.activateServerEvents(1, 3000);
+		addNoseListener();
 	    webRtcEndpoint.connect(nose);
 	    nose.connect(webRtcEndpoint);
 						
@@ -145,6 +144,17 @@ public class NuboNoseJavaHandler extends TextWebSocketHandler {
 
     }
     
+    private void addNoseListener()
+    {    	
+    	nose.addOnNoseListener(new EventListener<OnNoseEvent>() {
+	    	@Override
+    		public void onEvent(OnNoseEvent event)
+    		{
+	    		System.out.println("----------------Nose Detected--------------------------");
+    		}	    	
+		});
+
+    }
     private void notEnoughResources(WebSocketSession session) {
 	// 1. Send notEnoughResources message to client
 	JsonObject response = new JsonObject();
