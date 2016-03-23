@@ -4,14 +4,14 @@
 #include <gst/video/video.h>
 #include <gst/video/gstvideofilter.h>
 #include <glib/gstdio.h>
-#include <opencv2/opencv.hpp>
-
-
-#include <time.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/time.h>
+#include <string>
 #include <unistd.h>
+#include <iostream>
+#include <opencv2/opencv.hpp>
+#include <sys/time.h>
+#include <commons/kmsserializablemeta.h>
+
+#include <commons/kms-core-marshal.h>
 
 #define PLUGIN_NAME "nubomouthdetector"
 #define FACE_WIDTH 160
@@ -156,33 +156,6 @@ kms_mouth_detect_init_cascade()
 }
 
 
-static gboolean kms_mouth_detect_sink_events(GstBaseTransform * trans, GstEvent * event)
-{
-  gboolean ret;
-  KmsMouthDetect *mouth = KMS_MOUTH_DETECT(trans);
-
-  switch (GST_EVENT_TYPE (event)) {
-  case GST_EVENT_CUSTOM_DOWNSTREAM:
-    {
-      GstStructure *message;
-
-      GST_OBJECT_LOCK (mouth);
-
-      message = gst_structure_copy (gst_event_get_structure (event));
-
-      g_queue_push_tail (mouth->priv->events_queue, message);
-
-      GST_OBJECT_UNLOCK (mouth);
-      break;
-    }
-  default:
-    break;
-  }
-  ret=  gst_pad_event_default (trans->sinkpad, GST_OBJECT (trans), event);
-
-  return ret;
-}
-
 
 static void kms_mouth_send_event(KmsMouthDetect *mouth_detect,GstVideoFrame *frame)
 {
@@ -256,8 +229,8 @@ static void kms_mouth_send_event(KmsMouthDetect *mouth_detect,GstVideoFrame *fra
 	}
       
       /*info about the mouth detected added as a metada*/
-      //if (1 == mouth_detect->priv->meta_data)    
-	//  kms_buffer_add_serializable_meta (frame->buffer,message);  
+      if (1 == mouth_detect->priv->meta_data)    
+	kms_buffer_add_serializable_meta (frame->buffer,message);  
     }
 	
 }
@@ -421,8 +394,8 @@ static gboolean __get_timestamp(KmsMouthDetect *mouth,
   return ret;
 }
 
-static bool __get_message(KmsMouthDetect *mouth,
-			  GstStructure *message)
+static bool __get_event_message(KmsMouthDetect *mouth,
+				GstStructure *message)
 {
   gint len,aux;
   bool result=false;
@@ -471,31 +444,22 @@ static bool __get_message(KmsMouthDetect *mouth,
   return result;
 }
 
-static bool __process_alg(KmsMouthDetect *mouth_detect, GstClockTime f_pts)
+static bool __receive_event(KmsMouthDetect *mouth_detect, GstVideoFrame *frame)
 {
-  GstStructure *message;
+  KmsSerializableMeta *metadata;
   bool res=false;
-  gboolean ret = false;
+
   //if detect_event is false it does not matter the event received
 
   if (0==mouth_detect->priv->detect_event) return true;
 
-  if (g_queue_get_length(mouth_detect->priv->events_queue) == 0) 
+  metadata=kms_buffer_get_serializable_meta(frame->buffer);
+
+
+  if (NULL == metadata)
     return false;
-	
-  message= (GstStructure *) g_queue_pop_head(mouth_detect->priv->events_queue);
 
-  if (NULL != message)
-    {
-
-      ret=__get_timestamp(mouth_detect,message);
-       //if ( ret && mouth_detect->priv->pts == f_pts)
-      if ( ret )
-	{
-	  res = __get_message(mouth_detect,message);	  
-	}
-    }
-
+  res = __get_event_message(mouth_detect,metadata->data);
 
   if (res) 
     mouth_detect->priv->num_frames_to_process = NUM_FRAMES_TO_PROCESS / 
@@ -558,7 +522,7 @@ static vector<Rect> *__merge_mouths_consecutives_frames(vector<Rect> *cm, vector
   
 static void
 kms_mouth_detect_process_frame(KmsMouthDetect *mouth_detect,int width,int height,
-			       double scale_f2m,double scale_m2o, double scale_o2f,GstClockTime pts)
+			       double scale_f2m,double scale_m2o, double scale_o2f,GstVideoFrame *frame)
 {
   int i = 0;
   Scalar color;
@@ -582,7 +546,7 @@ kms_mouth_detect_process_frame(KmsMouthDetect *mouth_detect,int width,int height
 				    CV_RGB(0,255,0)};	
 
   
-  if ( ! __process_alg(mouth_detect,pts) && mouth_detect->priv->num_frames_to_process <=0)
+  if ( ! __receive_event(mouth_detect,frame) && mouth_detect->priv->num_frames_to_process <=0)
     return;
 
   mouth_detect->priv->num_frame++;
@@ -687,13 +651,15 @@ kms_mouth_detect_transform_frame_ip (GstVideoFilter *filter,
   width = mouth_detect->priv->img_width;
   height = mouth_detect->priv->img_height;
       
-  KMS_MOUTH_DETECT_UNLOCK (mouth_detect);
+
     
   kms_mouth_detect_process_frame(mouth_detect,width,height,scale_f2m,
-				 scale_m2o,scale_o2f,frame->buffer->pts);
+				 scale_m2o,scale_o2f,frame);
 	
   kms_mouth_send_event(mouth_detect,frame);
-     
+    
+  KMS_MOUTH_DETECT_UNLOCK (mouth_detect);
+
   gst_buffer_unmap (frame->buffer, &info);
   
   return GST_FLOW_OK;
@@ -811,7 +777,7 @@ kms_mouth_detect_class_init (KmsMouthDetectClass *mouth)
 						     0,1,FALSE, (GParamFlags) G_PARAM_READWRITE));
   
   g_object_class_install_property (gobject_class, PROP_SEND_META_DATA,
-				   g_param_spec_int ("meta-data", "send meta data",
+				   g_param_spec_int ("send-meta-data", "send meta data",
 						     "0 (default) => it will not send meta data; 1 => it will send the bounding box of the mouth and face", 
 						     0,1,FALSE, (GParamFlags) G_PARAM_READWRITE));
 
@@ -853,8 +819,7 @@ kms_mouth_detect_class_init (KmsMouthDetectClass *mouth)
   /*Properties initialization*/
   g_type_class_add_private (mouth, sizeof (KmsMouthDetectPrivate) );
 
-  mouth->base_mouth_detect_class.parent_class.sink_event =
-    GST_DEBUG_FUNCPTR(kms_mouth_detect_sink_events);
+
 }
 
 gboolean
