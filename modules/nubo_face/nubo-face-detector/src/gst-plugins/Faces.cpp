@@ -16,7 +16,7 @@ Faces::Faces(vector<BaseFace> &v)
   faces = new vector<BaseFace>;
   *faces = v;
   faces_id= 0;
-  for (i=0; i < faces->size();i++)
+  for (i=0; i < (int) (faces->size());i++)
     {
       faces->at(i).set_id(faces_id);      
       faces_id++;
@@ -29,7 +29,7 @@ Faces::Faces(vector<Rect> &v)
   faces = new vector<BaseFace>;
   faces_id=0;
 
-  for (i=0; i < v.size();i++)
+  for (i=0; i < (int)(v.size());i++)
     {
       faces->push_back(BaseFace(v.at(i)));          
       faces->at(i).set_id(faces_id);
@@ -203,7 +203,7 @@ void Faces::print()
 {
   cout<< "Number of faces: " << faces->size() << endl;
 
-  for(int i=0; i < faces->size();i++)    
+  for(int i=0; i < (int)(faces->size());i++)    
     {
       cout << "********** Face " << i << "**********" << endl;
       faces->at(i).print();

@@ -3,8 +3,7 @@
 #ifndef __NUBO_FACE_DETECTOR_IMPL_HPP__
 #define __NUBO_FACE_DETECTOR_IMPL_HPP__
 
-//#include "FilterImpl.hpp"
-#include "BaseRtpEndpointImpl.hpp"
+#include "FilterImpl.hpp"
 #include "NuboFaceDetector.hpp"
 #include <EventHandler.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -37,8 +36,7 @@ namespace module
 namespace nubofacedetector
 {
 
-//class NuboFaceDetectorImpl : public FilterImpl, public virtual NuboFaceDetector
-class NuboFaceDetectorImpl : public BaseRtpEndpointImpl , public virtual NuboFaceDetector
+class NuboFaceDetectorImpl : public FilterImpl, public virtual NuboFaceDetector
 {
 
 public:
@@ -47,36 +45,35 @@ public:
 
   virtual ~NuboFaceDetectorImpl ();
 
-  void showFaces(int viewFaces);
-  void detectByEvent(int event);
-  void sendMetaData(int metaData);
-  void multiScaleFactor(int scaleFactor);
-  void processXevery4Frames(int xper4);
-  void widthToProcess(int width);
-  void euclideanDistance(int distance);
-  void trackThreshold(int threshold);
-  void areaThreshold(int threshold);
+  void showFaces (int viewFaces);
+  void detectByEvent (int event);
+  void sendMetaData (int metaData);
+  void multiScaleFactor (int scaleFactor);
+  void processXevery4Frames (int xper4);
+  void widthToProcess (int width);
+  void euclideanDistance (int distance);
+  void trackThreshold (int threshold);
+  void areaThreshold (int threshold);
+  void activateServerEvents (int activate,int ms);
 
-  sigc::signal<void, OnFaceEvent> signalOnFaceEvent;
   /* Next methods are automatically implemented by code generator */
   virtual bool connect (const std::string &eventType, std::shared_ptr<EventHandler> handler);
+
+  sigc::signal<void, OnFace> signalOnFace;
   virtual void invoke (std::shared_ptr<MediaObjectImpl> obj,
                        const std::string &methodName, const Json::Value &params,
                        Json::Value &response);
 
   virtual void Serialize (JsonSerializer &serializer);
 
-/*protected:
-  virtual void postConstructor();*/
+protected: 
+  virtual void postConstructor ();
 
 private:
-
   GstElement *nubo_face = NULL; 
-
   gulong handlerOnFaceEvent = 0;
-  void onFaceEvent (gchar*, guint);
-
-  
+  void onFace (gchar *);
+  void split_message (std::string fi, std::string delimiter, std::vector<std::string> *v);
   class StaticConstructor
   {
   public:
