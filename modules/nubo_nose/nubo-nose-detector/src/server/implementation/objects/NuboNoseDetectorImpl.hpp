@@ -44,7 +44,7 @@ namespace kurento
 
 	NuboNoseDetectorImpl (const boost::property_tree::ptree &config, std::shared_ptr<MediaPipeline> mediaPipeline);
 
-	virtual ~NuboNoseDetectorImpl () {};
+	virtual ~NuboNoseDetectorImpl ();
 
 	void showNoses (int viewNoses);
 	void detectByEvent(int event);
@@ -52,8 +52,10 @@ namespace kurento
 	void multiScaleFactor(int scaleFactor);
 	void processXevery4Frames(int xper4);
 	void widthToProcess(int width);
+	void activateServerEvents (int activate,int ms);
 
 	/* Next methods are automatically implemented by code generator */
+	sigc::signal<void, OnNose> signalOnNose;
 	virtual bool connect (const std::string &eventType, std::shared_ptr<EventHandler> handler);
 	virtual void invoke (std::shared_ptr<MediaObjectImpl> obj,
 			     const std::string &methodName, const Json::Value &params,
@@ -61,8 +63,15 @@ namespace kurento
 
 	virtual void Serialize (JsonSerializer &serializer);
 
+      protected: 
+	virtual void postConstructor ();
+
       private:
 	GstElement *nubo_nose = NULL;
+	gulong handlerOnNoseEvent = 0;
+	void onNose (gchar *);
+	void split_message (std::string fi, std::string delimiter, std::vector<std::string> *v);
+	
 	class StaticConstructor
 	{
 	public:

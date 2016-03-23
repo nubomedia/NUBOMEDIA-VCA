@@ -10,6 +10,14 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
 #include <sys/time.h>
+#include <commons/kmsserializablemeta.h>
+#include <sstream>
+
+#include <commons/kms-core-marshal.h>
+
+#include <time.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 
 #define PLUGIN_NAME "nubonosedetector"
@@ -32,6 +40,8 @@
 #define NOSE_SCALE_FACTOR 1.1
 #define GOP 4
 #define DEFAULT_EUCLIDEAN_DIS 6
+#define SERVER_EVENTS 0
+#define EVENTS_MS 30001
 
 using namespace cv;
 
@@ -60,8 +70,19 @@ enum {
   PROP_MULTI_SCALE_FACTOR,
   PROP_WIDTH_TO_PROCCESS,
   PROP_PROCESS_X_EVERY_4_FRAMES,
+  PROP_ACTIVATE_SERVER_EVENTS,
+  PROP_SERVER_EVENTS_MS,
   PROP_SHOW_DEBUG_INFO
 };
+
+
+
+enum {
+  SIGNAL_ON_NOSE_EVENT,
+  LAST_SIGNAL
+};
+
+static guint kms_nose_detector_signals[LAST_SIGNAL] = { 0 };
 
 struct _KmsNoseDetectPrivate {
 
@@ -79,6 +100,9 @@ struct _KmsNoseDetectPrivate {
   int scale_factor;
   int process_x_every_4_frames;
   int num_frame;  
+  int server_events;
+  int events_ms;
+  double time_events_ms;
   GRecMutex mutex;
   gboolean debug;
   GQueue *events_queue;
@@ -117,6 +141,15 @@ G_DEFINE_TYPE_WITH_CODE (KmsNoseDetect, kms_nose_detect,
 static CascadeClassifier fcascade;
 static CascadeClassifier ncascade;
 
+template<typename T>
+string toString(const T& value)
+{
+  std::stringstream ss;
+   ss << value;
+   return ss.str();
+}
+
+
 static int
 kms_nose_detect_init_cascade()
 {
@@ -136,33 +169,6 @@ kms_nose_detect_init_cascade()
 }
 
 
-static gboolean kms_nose_detect_sink_events(GstBaseTransform * trans, GstEvent * event)
-{
-  gboolean ret;
-  KmsNoseDetect *nose = KMS_NOSE_DETECT(trans);
-
-  switch (GST_EVENT_TYPE (event)) {
-  case GST_EVENT_CUSTOM_DOWNSTREAM:
-    {
-      GstStructure *message;
-
-      GST_OBJECT_LOCK (nose);
-
-      message = gst_structure_copy (gst_event_get_structure (event));
-
-      g_queue_push_tail (nose->priv->events_queue, message);
-
-      GST_OBJECT_UNLOCK (nose);
-      break;
-    }
-  default:
-    break;
-  }
-
-  ret=  gst_pad_event_default (trans->sinkpad, GST_OBJECT (trans), event);
-
-  return ret;
-}
 
 static void kms_nose_send_event(KmsNoseDetect *nose_detect,GstVideoFrame *frame)
 {
@@ -175,28 +181,13 @@ static void kms_nose_send_event(KmsNoseDetect *nose_detect,GstVideoFrame *frame)
   vector<Rect> *fd=nose_detect->priv->faces;
   vector<Rect> *nd=nose_detect->priv->noses;
   int norm_faces = nose_detect->priv->scale_o2f;
+  std::string noses_str;
+  struct timeval  end; 
+  double current_t, diff_time;
 
-  message= gst_structure_new_empty("message");
-  ts=gst_structure_new("time",
-		       "pts",G_TYPE_UINT64, GST_BUFFER_PTS(frame->buffer),NULL);
-	
-  gst_structure_set(message,"timestamp",GST_TYPE_STRUCTURE, ts,NULL);
-  gst_structure_free(ts);
+  message= gst_structure_new_empty("noses");
+
 		
-  for( vector<Rect>::const_iterator r = fd->begin(); r != fd->end(); r++,i++ )
-    {
-      face = gst_structure_new("face",
-			       "type", G_TYPE_STRING,"face", 
-			       "x", G_TYPE_UINT,(guint) r->x * norm_faces, 
-			       "y", G_TYPE_UINT,(guint) r->y * norm_faces, 
-			       "width",G_TYPE_UINT, (guint)r->width * norm_faces,
-			       "height",G_TYPE_UINT, (guint)r->height * norm_faces,
-			       NULL);
-      sprintf(elem_id,"%d",i);
-      gst_structure_set(message,elem_id,GST_TYPE_STRUCTURE, face,NULL);
-      gst_structure_free(face);
-
-    }
   //noses were already normalized on kms_noses_detect_process_frame.
   for(  vector<Rect>::const_iterator m = nd->begin(); m != nd->end(); m++,i++ )
     {
@@ -210,11 +201,32 @@ static void kms_nose_send_event(KmsNoseDetect *nose_detect,GstVideoFrame *frame)
       sprintf(elem_id,"%d",i);
       gst_structure_set(message,elem_id,GST_TYPE_STRUCTURE, nose,NULL);
       gst_structure_free(nose);
-    }
-  /*post a faces detected event to src pad*/
-  event = gst_event_new_custom (GST_EVENT_CUSTOM_DOWNSTREAM, message);
-  gst_pad_push_event(nose_detect->base.element.srcpad, event);
 
+           //neccesary info for sending as event to the server
+      std::string new_nose ("x:" + toString((guint) m->x ) + 
+			    ",y:" + toString((guint) m->y ) + 
+			    ",width:" + toString((guint)m->width )+ 
+			    ",height:" + toString((guint)m->height )+ ";");
+      noses_str= noses_str + new_nose;
+    }
+
+  if ((int)nd->size()>0)
+    {
+      gettimeofday(&end,NULL);
+      current_t= ((end.tv_sec * 1000.0) + ((end.tv_usec)/1000.0));
+      diff_time = current_t - nose_detect->priv->time_events_ms;
+
+      if (1 == nose_detect->priv->server_events && diff_time > nose_detect->priv->events_ms)
+	{
+	  nose_detect->priv->time_events_ms=current_t;
+	  g_signal_emit (G_OBJECT (nose_detect),
+			 kms_nose_detector_signals[SIGNAL_ON_NOSE_EVENT], 0,noses_str.c_str());
+	}
+      
+      /*Adding data as a metadata in the video*/
+      if (1 == nose_detect->priv->meta_data)    	
+	  kms_buffer_add_serializable_meta (frame->buffer,message);  	
+    }
 	
 }
 
@@ -263,8 +275,8 @@ kms_nose_detect_set_property (GObject *object, guint property_id,
   //Changing values of the properties is a critical region because read/write
   //concurrently could produce race condition. For this reason, the following
   //code is protected with a mutex
+  struct timeval  t;
   KMS_NOSE_DETECT_LOCK (nose_detect);
-
 
   switch (property_id) {
 
@@ -289,6 +301,16 @@ kms_nose_detect_set_property (GObject *object, guint property_id,
     
   case PROP_MULTI_SCALE_FACTOR:
     nose_detect->priv->scale_factor = g_value_get_int(value);
+    break;
+
+  case  PROP_ACTIVATE_SERVER_EVENTS:
+    nose_detect->priv->server_events = g_value_get_int(value);
+    gettimeofday(&t,NULL);
+    nose_detect->priv->time_events_ms= ((t.tv_sec * 1000.0) + ((t.tv_usec)/1000.0));    
+    break;
+    
+  case PROP_SERVER_EVENTS_MS:
+    nose_detect->priv->events_ms = g_value_get_int(value);   
     break;
 
   default:
@@ -337,6 +359,14 @@ kms_nose_detect_get_property (GObject *object, guint property_id,
     g_value_set_int(value,nose_detect->priv->scale_factor);    
     break;
 
+  case  PROP_ACTIVATE_SERVER_EVENTS:
+    g_value_set_int(value,nose_detect->priv->server_events);
+    break;
+    
+  case PROP_SERVER_EVENTS_MS:
+    g_value_set_int(value,nose_detect->priv->events_ms);
+    break;
+
   default:
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
     break;
@@ -364,7 +394,7 @@ static gboolean __get_timestamp(KmsNoseDetect *nose,
 }
 
 
-static bool __get_message(KmsNoseDetect *nose,
+static bool __get_event_message(KmsNoseDetect *nose,
 			  GstStructure *message)
 {
   gint len,aux;
@@ -384,59 +414,47 @@ static bool __get_message(KmsNoseDetect *nose,
     if (g_strcmp0 (name, "timestamp") == 0) {
       continue;
     }
-    sprintf(struct_id,"%d",id);    
-    if ((g_strcmp0(name,struct_id) == 0)) //get structure's id
-      {
-	id++;
-
-	//getting the structure
-	ret = gst_structure_get (message, name, GST_TYPE_STRUCTURE, &data, NULL);
-	if (ret) {
-	  //type of the structure
-	  gst_structure_get (data, "type", G_TYPE_STRING, &str_type, NULL);
-
-	  if (g_strcmp0(str_type,FACE_TYPE)==0)//only interested on FACE EVENTS
-	    {
-	      Rect r;
-	      gst_structure_get (data, "x", G_TYPE_UINT, & r.x, NULL);
-	      gst_structure_get (data, "y", G_TYPE_UINT, & r.y, NULL);
-	      gst_structure_get (data, "width", G_TYPE_UINT, & r.width, NULL);
-	      gst_structure_get (data, "height", G_TYPE_UINT, & r.height, NULL);	  	 
-	      gst_structure_free (data);
-	      nose->priv->faces->push_back(r);
-	      
-	    }	  
-	  result=true;
-	}
-      }
-  }            
+    //getting the structure
+    ret = gst_structure_get (message, name, GST_TYPE_STRUCTURE, &data, NULL);
+    if (ret) {
+      //type of the structure
+      gst_structure_get (data, "type", G_TYPE_STRING, &str_type, NULL);
+      
+      
+      if (g_strcmp0(str_type,FACE_TYPE)==0)//only interested on FACE EVENTS
+	{
+	  Rect r;
+	  gst_structure_get (data, "x", G_TYPE_UINT, & r.x, NULL);
+	  gst_structure_get (data, "y", G_TYPE_UINT, & r.y, NULL);
+	  gst_structure_get (data, "width", G_TYPE_UINT, & r.width, NULL);
+	  gst_structure_get (data, "height", G_TYPE_UINT, & r.height, NULL);	  	 
+	  gst_structure_free (data);
+	  nose->priv->faces->push_back(r);	      
+	  
+	}	  
+      result=true;
+    }  
+  }
+          
   return result;
 }
 
-static bool __process_alg(KmsNoseDetect *nose_detect, GstClockTime f_pts)
+static bool __receive_event(KmsNoseDetect *nose_detect,GstVideoFrame *frame)
 {
-  GstStructure *message;
-  bool res=false;
-  gboolean ret = false;
+  KmsSerializableMeta *metadata;
+  gboolean res = false;
   //if detect_event is false it does not matter the event received
+
 
   if (0==nose_detect->priv->detect_event) return true;
 
-  if (g_queue_get_length(nose_detect->priv->events_queue) == 0) 
+
+  metadata = kms_buffer_get_serializable_meta(frame->buffer);
+
+  if (NULL == metadata)   
     return false;
-	
-  message= (GstStructure *) g_queue_pop_head(nose_detect->priv->events_queue);
 
-  if (NULL != message)
-    {
-
-      ret=__get_timestamp(nose_detect,message);
-
-      if ( ret )
-	{
-	  res = __get_message(nose_detect,message);	  
-	}
-    }
+  res = __get_event_message(nose_detect,metadata->data);	  
 
   if (res) 
     nose_detect->priv->num_frames_to_process = NUM_FRAMES_TO_PROCESS /
@@ -445,7 +463,8 @@ static bool __process_alg(KmsNoseDetect *nose_detect, GstClockTime f_pts)
   // if we process 3 per 4 images  num_frame_to_process = 10 / 5
   // if we process 2 per 4 images  num_frame_to_process = 10 / 3
   // if we process 1 per 4 images  num_frame_to_process = 10 / 2;
-  
+
+
   return res;
 
 }
@@ -454,7 +473,6 @@ static vector<Rect> *__merge_noses_consecutives_frames(vector<Rect> *cn, vector<
 					       Rect &face_cord, int scale)
 {
   vector<Rect>::iterator it_n ;
-  FILE *f;
   vector<Rect> *res = new vector<Rect>;
 
   for (int i=0; i < (int)(noses->size()); i++)
@@ -478,11 +496,6 @@ static vector<Rect> *__merge_noses_consecutives_frames(vector<Rect> *cn, vector<
 	      cn->erase(cn->begin()+j);	      
 	      break;
 	    }
-	  else {
-	    f=fopen("/tmp/track_noses.txt","a");
-	    fprintf(f,"\n\n h2 %d < %d DEFAULT_EUCLIDEAN_DIS \n",(int)h2,DEFAULT_EUCLIDEAN_DIS);
-	    fclose(f);
-	  }
 	}      
     }
 
@@ -505,7 +518,7 @@ static vector<Rect> *__merge_noses_consecutives_frames(vector<Rect> *cn, vector<
 
 static void
 kms_nose_detect_process_frame(KmsNoseDetect *nose_detect,int width,int height,double scale_f2n,
-			      double scale_n2o, double scale_o2f,GstClockTime pts)
+			      double scale_n2o, double scale_o2f,GstVideoFrame *frame)
 {
   Mat img (nose_detect->priv->img_orig);
   vector<Rect> *faces=nose_detect->priv->faces;
@@ -528,8 +541,10 @@ kms_nose_detect_process_frame(KmsNoseDetect *nose_detect,int width,int height,do
 				    CV_RGB(0,128,255),
 				    CV_RGB(0,0,255)} ;
 
-  if ( ! __process_alg(nose_detect,pts) && nose_detect->priv->num_frames_to_process <=0)
+
+  if ( ! __receive_event(nose_detect,frame) && nose_detect->priv->num_frames_to_process <=0)
     return;
+
 
   nose_detect->priv->num_frame++;
 
@@ -642,14 +657,12 @@ kms_nose_detect_transform_frame_ip (GstVideoFilter *filter,
   width = nose_detect->priv->img_width;
   height = nose_detect->priv->img_height;
 	
-
   kms_nose_detect_process_frame(nose_detect,width,height,scale_f2n,
-				scale_n2o,scale_o2f,frame->buffer->pts);
+				scale_n2o,scale_o2f,frame);
 
   KMS_NOSE_DETECT_UNLOCK (nose_detect);
 
-  if (1==nose_detect->priv->meta_data)
-      kms_nose_send_event(nose_detect,frame);
+  kms_nose_send_event(nose_detect,frame);
 
   gst_buffer_unmap (frame->buffer, &info);
 
@@ -719,6 +732,8 @@ kms_nose_detect_init (KmsNoseDetect *
   nose_detect->priv->num_frame=0;
   nose_detect->priv->width_to_process=NOSE_WIDTH;
   nose_detect->priv->scale_factor=DEFAULT_SCALE_FACTOR;
+  nose_detect->priv->server_events=SERVER_EVENTS;
+  nose_detect->priv->events_ms=EVENTS_MS;
 
   if (fcascade.empty())
     if (kms_nose_detect_init_cascade() < 0)
@@ -772,7 +787,7 @@ kms_nose_detect_class_init (KmsNoseDetectClass *nose)
 						     0,1,FALSE, (GParamFlags) G_PARAM_READWRITE));
   
   g_object_class_install_property (gobject_class, PROP_SEND_META_DATA,
-				   g_param_spec_int ("meta-data", "send meta data",
+				   g_param_spec_int ("send-meta-data", "send meta data",
 						     "0 (default) => it will not send meta data; 1 => it will send the bounding box of the nose and face", 
 						     0,1,FALSE, (GParamFlags) G_PARAM_READWRITE));
 
@@ -793,14 +808,29 @@ g_object_class_install_property (gobject_class, PROP_WIDTH_TO_PROCCESS,
 						    0,51,FALSE, (GParamFlags) G_PARAM_READWRITE));
 	  
 
+ g_object_class_install_property (gobject_class,   PROP_ACTIVATE_SERVER_EVENTS,
+				  g_param_spec_int ("activate-events", "Activate Events",
+						    "(0 default) => It will not send events to server, 1 => it will send events to the server", 
+			          0,1,FALSE, (GParamFlags) G_PARAM_READWRITE));
+
+ g_object_class_install_property (gobject_class,   PROP_SERVER_EVENTS_MS,
+				  g_param_spec_int ("events-ms",  "Activate Events",
+						    "the time, it takes to send events to the servers", 
+			          0,30000,FALSE, (GParamFlags) G_PARAM_READWRITE));
+
   video_filter_class->transform_frame_ip =
     GST_DEBUG_FUNCPTR (kms_nose_detect_transform_frame_ip);
+
+  kms_nose_detector_signals[SIGNAL_ON_NOSE_EVENT] =
+    g_signal_new ("nose-event",
+		  G_TYPE_FROM_CLASS (nose),
+		  G_SIGNAL_RUN_LAST,
+		  0, NULL, NULL, NULL,
+		  G_TYPE_NONE, 1, G_TYPE_STRING);
 
   /*Properties initialization*/
   g_type_class_add_private (nose, sizeof (KmsNoseDetectPrivate) );
 
-  nose->base_nose_detect_class.parent_class.sink_event =
-    GST_DEBUG_FUNCPTR(kms_nose_detect_sink_events);
 }
 
 gboolean
