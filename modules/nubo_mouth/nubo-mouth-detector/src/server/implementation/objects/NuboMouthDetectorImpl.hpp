@@ -43,7 +43,7 @@ public:
 
   NuboMouthDetectorImpl (const boost::property_tree::ptree &config, std::shared_ptr<MediaPipeline> mediaPipeline);
 
-  virtual ~NuboMouthDetectorImpl () {};
+  virtual ~NuboMouthDetectorImpl ();
 
   void showMouths(int viewMouths);
   void detectByEvent(int event);
@@ -51,8 +51,10 @@ public:
   void multiScaleFactor(int scaleFactor);
   void processXevery4Frames(int xper4);
   void widthToProcess(int width);
+  void activateServerEvents (int activate,int ms);
 
   /* Next methods are automatically implemented by code generator */
+  sigc::signal<void, OnMouth> signalOnMouth;
   virtual bool connect (const std::string &eventType, std::shared_ptr<EventHandler> handler);
   virtual void invoke (std::shared_ptr<MediaObjectImpl> obj,
                        const std::string &methodName, const Json::Value &params,
@@ -60,9 +62,16 @@ public:
 
   virtual void Serialize (JsonSerializer &serializer);
 
+
+protected: 
+  virtual void postConstructor ();
+
 private:
 
   GstElement *nubo_mouth = NULL;
+  gulong handlerOnMouthEvent = 0;
+  void onMouth (gchar *);
+  void split_message (std::string fi, std::string delimiter, std::vector<std::string> *v);
   class StaticConstructor
   {
   public:

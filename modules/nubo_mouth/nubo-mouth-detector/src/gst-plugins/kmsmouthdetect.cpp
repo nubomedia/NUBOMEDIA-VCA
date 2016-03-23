@@ -25,6 +25,8 @@
 #define GOP 4
 #define DEFAULT_SCALE_FACTOR 25
 #define MOUTH_SCALE_FACTOR 1.1
+#define SERVER_EVENTS 0
+#define EVENTS_MS 30001
 
 #define FACE_CONF_FILE "/usr/share/opencv/haarcascades/haarcascade_frontalface_alt.xml"
 #define MOUTH_CONF_FILE "/usr/share/opencv/haarcascades/haarcascade_mcs_mouth.xml"
@@ -54,8 +56,18 @@ enum {
   PROP_SEND_META_DATA,
   PROP_MULTI_SCALE_FACTOR,
   PROP_WIDTH_TO_PROCESS,
+  PROP_ACTIVATE_SERVER_EVENTS,
+  PROP_SERVER_EVENTS_MS,
   PROP_PROCESS_X_EVERY_4_FRAMES
 };
+
+
+enum {
+  SIGNAL_ON_MOUTH_EVENT,
+  LAST_SIGNAL
+};
+
+static guint kms_mouth_detector_signals[LAST_SIGNAL] = { 0 };
 
 struct _KmsMouthDetectPrivate {
 
@@ -71,7 +83,9 @@ struct _KmsMouthDetectPrivate {
   int process_x_every_4_frames;
   int scale_factor;
   int num_frame;
-
+  int server_events;
+  int events_ms;
+  double time_events_ms;
   float scale_o2f;//origin 2 face
   float scale_f2m;//face 2 mouth
   float scale_m2o;//mounth 2 origin 
@@ -113,6 +127,14 @@ G_DEFINE_TYPE_WITH_CODE (KmsMouthDetect, kms_mouth_detect,
 
 static CascadeClassifier fcascade;
 static CascadeClassifier mcascade;
+
+template<typename T>
+string toString(const T& value)
+{
+  std::stringstream ss;
+   ss << value;
+   return ss.str();
+}
 
 static int
 kms_mouth_detect_init_cascade()
@@ -166,13 +188,15 @@ static void kms_mouth_send_event(KmsMouthDetect *mouth_detect,GstVideoFrame *fra
 {
   GstStructure *face,*mouth;
   GstStructure *ts;
-  GstEvent *event;
   GstStructure *message;
   int i=0;
   char elem_id[10];
   vector<Rect> *fd=mouth_detect->priv->faces;
   vector<Rect> *md=mouth_detect->priv->mouths;
   int norm_faces = mouth_detect->priv->scale_o2f;
+  std::string mouths_str;
+  struct timeval  end; 
+  double current_t, diff_time;
 
   message= gst_structure_new_empty("message");
   ts=gst_structure_new("time",
@@ -181,7 +205,7 @@ static void kms_mouth_send_event(KmsMouthDetect *mouth_detect,GstVideoFrame *fra
   gst_structure_set(message,"timestamp",GST_TYPE_STRUCTURE, ts,NULL);
   gst_structure_free(ts);
 		
-  for(  vector<Rect>::const_iterator r = fd->begin(); r != fd->end(); r++,i++ )
+  /*for(  vector<Rect>::const_iterator r = fd->begin(); r != fd->end(); r++,i++ )
     {
       face = gst_structure_new("face",
 			       "type", G_TYPE_STRING,"face", 
@@ -193,7 +217,7 @@ static void kms_mouth_send_event(KmsMouthDetect *mouth_detect,GstVideoFrame *fra
       sprintf(elem_id,"%d",i);
       gst_structure_set(message,elem_id,GST_TYPE_STRUCTURE, face,NULL);
       gst_structure_free(face);
-    }
+    }*/
   
 
   //mouths were already normalized on kms_mouth_detect_process_frame.
@@ -209,10 +233,32 @@ static void kms_mouth_send_event(KmsMouthDetect *mouth_detect,GstVideoFrame *fra
       sprintf(elem_id,"%d",i);
       gst_structure_set(message,elem_id,GST_TYPE_STRUCTURE, mouth,NULL);
       gst_structure_free(mouth);
+
+      std::string new_mouth ("x:" + toString((guint) m->x ) + 
+			     ",y:" + toString((guint) m->y ) + 
+			     ",width:" + toString((guint)m->width )+ 
+			    ",height:" + toString((guint)m->height )+ ";");
+      mouths_str= mouths_str + new_mouth;
     }
-  /*post a faces detected event to src pad*/
-  event = gst_event_new_custom (GST_EVENT_CUSTOM_DOWNSTREAM, message);
-  gst_pad_push_event(mouth_detect->base.element.srcpad, event);
+
+  if ((int)md->size()>0)
+    {
+
+      gettimeofday(&end,NULL);
+      current_t= ((end.tv_sec * 1000.0) + ((end.tv_usec)/1000.0));
+      diff_time = current_t - mouth_detect->priv->time_events_ms;
+
+      if (1 == mouth_detect->priv->server_events && diff_time > mouth_detect->priv->events_ms)
+	{
+	  mouth_detect->priv->time_events_ms=current_t;
+	  g_signal_emit (G_OBJECT (mouth_detect),
+			 kms_mouth_detector_signals[SIGNAL_ON_MOUTH_EVENT], 0,mouths_str.c_str());
+	}
+      
+      /*info about the mouth detected added as a metada*/
+      //if (1 == mouth_detect->priv->meta_data)    
+	//  kms_buffer_add_serializable_meta (frame->buffer,message);  
+    }
 	
 }
 
@@ -253,6 +299,7 @@ kms_mouth_detect_set_property (GObject *object, guint property_id,
 			       const GValue *value, GParamSpec *pspec)
 {
   KmsMouthDetect *mouth_detect = KMS_MOUTH_DETECT (object);
+  struct timeval  t;
   //Changing values of the properties is a critical region because read/write
   //concurrently could produce race condition. For this reason, the following
   //code is protected with a mutex
@@ -284,6 +331,16 @@ kms_mouth_detect_set_property (GObject *object, guint property_id,
     mouth_detect->priv->width_to_process = g_value_get_int(value);
     break;
 
+  case  PROP_ACTIVATE_SERVER_EVENTS:
+    mouth_detect->priv->server_events = g_value_get_int(value);
+    gettimeofday(&t,NULL);
+    mouth_detect->priv->time_events_ms= ((t.tv_sec * 1000.0) + ((t.tv_usec)/1000.0));    
+    break;
+
+  case PROP_SERVER_EVENTS_MS:
+    mouth_detect->priv->events_ms = g_value_get_int(value);
+    break;   
+    
   default:
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
     break;
@@ -328,6 +385,14 @@ kms_mouth_detect_get_property (GObject *object, guint property_id,
 
   case PROP_WIDTH_TO_PROCESS:
     g_value_set_int(value,mouth_detect->priv->width_to_process);
+    break;
+
+  case  PROP_ACTIVATE_SERVER_EVENTS:
+    g_value_set_int(value,mouth_detect->priv->server_events);
+    break;
+    
+  case PROP_SERVER_EVENTS_MS:
+    g_value_set_int(value,mouth_detect->priv->events_ms);
     break;
 
   default:
@@ -507,7 +572,6 @@ kms_mouth_detect_process_frame(KmsMouthDetect *mouth_detect,int width,int height
   vector<Rect> *res= new vector<Rect>;
   int k=0;
   Rect r_aux;
-  FILE *f;
   const static Scalar colors[] =  { CV_RGB(255,255,0),
 				    CV_RGB(255,128,0),
 				    CV_RGB(255,0,0),
@@ -571,7 +635,7 @@ kms_mouth_detect_process_frame(KmsMouthDetect *mouth_detect,int width,int height
 	  if (mouth->size()>0)	    
 	    {
 	      result_aux=__merge_mouths_consecutives_frames(mouth,mouths,r_aux, scale_m2o);
-	      for ( k=0; k < result_aux->size(); k++)		
+	      for ( k=0; k < (int)(result_aux->size()); k++)		
 		  res->push_back(result_aux->at(k));		
 	    }
 	}	  
@@ -580,7 +644,7 @@ kms_mouth_detect_process_frame(KmsMouthDetect *mouth_detect,int width,int height
   if (mouth_detect->priv->mouths->size()>0)
     mouth_detect->priv->mouths->clear();
 
-  for (k=0;k < res->size();k++)
+  for (k=0;k < (int)(res->size());k++)
     mouth_detect->priv->mouths->push_back(res->at(k));
 
   if (GOP == mouth_detect->priv->num_frame )
@@ -611,10 +675,6 @@ kms_mouth_detect_transform_frame_ip (GstVideoFilter *filter,
   GstMapInfo info;
   double scale_o2f=0.0,scale_m2o=0.0,scale_f2m=0.0;
   int width=0,height=0;
-
-  struct timeval  start,end;
-
-  gettimeofday(&start,NULL);
   
   gst_buffer_map (frame->buffer, &info, GST_MAP_READ);
   kms_mouth_detect_conf_images (mouth_detect, frame, info);  // setting up images
@@ -632,17 +692,10 @@ kms_mouth_detect_transform_frame_ip (GstVideoFilter *filter,
   kms_mouth_detect_process_frame(mouth_detect,width,height,scale_f2m,
 				 scale_m2o,scale_o2f,frame->buffer->pts);
 	
-  if (1==mouth_detect->priv->meta_data)
-    kms_mouth_send_event(mouth_detect,frame);
+  kms_mouth_send_event(mouth_detect,frame);
      
   gst_buffer_unmap (frame->buffer, &info);
   
-  gettimeofday(&end,NULL);
-  
-  unsigned long long time_start= (((float)start.tv_sec * 1000.0) + (float(start.tv_usec)/1000.0));
-  unsigned long long time_end=  (((float)end.tv_sec * 1000.0) + (float(end.tv_usec)/1000.0));
-  unsigned long long total_time = time_end - time_start;
-
   return GST_FLOW_OK;
 }
 
@@ -703,6 +756,8 @@ kms_mouth_detect_init (KmsMouthDetect *
   mouth_detect->priv->num_frame=0;
   mouth_detect->priv->scale_factor=DEFAULT_SCALE_FACTOR;
   mouth_detect->priv->width_to_process=MOUTH_WIDTH;
+  mouth_detect->priv->server_events=SERVER_EVENTS;
+  mouth_detect->priv->events_ms=EVENTS_MS;
 
   if (fcascade.empty())
     if (kms_mouth_detect_init_cascade() < 0)
@@ -775,8 +830,25 @@ kms_mouth_detect_class_init (KmsMouthDetectClass *mouth)
 						     "5-50  (25 default) => specifying how much the image size is reduced at each image scale.", 
 						     0,51,FALSE, (GParamFlags) G_PARAM_READWRITE));
 
+  g_object_class_install_property (gobject_class,   PROP_ACTIVATE_SERVER_EVENTS,
+				   g_param_spec_int ("activate-events", "Activate Events",
+						     "(0 default) => It will not send events to server, 1 => it will send events to the server", 
+						     0,1,FALSE, (GParamFlags) G_PARAM_READWRITE));
+  
+  g_object_class_install_property (gobject_class,   PROP_SERVER_EVENTS_MS,
+				   g_param_spec_int ("events-ms",  "Activate Events",
+						    "the time, it takes to send events to the servers", 
+			          0,30000,FALSE, (GParamFlags) G_PARAM_READWRITE));
+
   video_filter_class->transform_frame_ip =
     GST_DEBUG_FUNCPTR (kms_mouth_detect_transform_frame_ip);
+
+  kms_mouth_detector_signals[SIGNAL_ON_MOUTH_EVENT] =
+    g_signal_new ("mouth-event",
+		  G_TYPE_FROM_CLASS (mouth),
+		  G_SIGNAL_RUN_LAST,
+		  0, NULL, NULL, NULL,
+		  G_TYPE_NONE, 1, G_TYPE_STRING);
 
   /*Properties initialization*/
   g_type_class_add_private (mouth, sizeof (KmsMouthDetectPrivate) );
