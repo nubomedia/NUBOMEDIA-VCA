@@ -13,7 +13,7 @@
  *
  */
 
-var ws = new WebSocket('ws://' + location.host + '/nubofacedetector');
+var ws = new WebSocket('wss://' + location.host + '/nubofacedetector');
 var videoInput;
 var videoOutput;
 var webRtcPeer;

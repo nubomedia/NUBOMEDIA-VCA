@@ -1,24 +1,8 @@
-/*
- * (C) Copyright 2015 Visual Tools (http://www.visual-tools.com/)
- *
- * All rights reserved. This program and the accompanying materials
- * are made available under the terms of the GNU Lesser General Public License
- * (LGPL) version 2.1 which accompanies this distribution, and is available at
- * http://www.gnu.org/licenses/lgpl-2.1.html
- *
- * This library is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
- * Lesser General Public License for more details.
- *
- */
-
 package com.visual_tools.nubomedia.nuboFaceJava;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-
 import org.kurento.client.EventListener;
 import org.kurento.client.KurentoClient;
 import org.kurento.client.OnIceCandidateEvent; 
@@ -136,9 +120,12 @@ public class NuboFaceJavaHandler extends TextWebSocketHandler {
 		});
 	    
 	    face = new NuboFaceDetector.Builder(user.getMediaPipeline()).build();
-			
+	    face.activateServerEvents(1, 3000);
+	    addFaceListener();
+	    
 	    webRtcEndpoint.connect(face);
 	    face.connect(webRtcEndpoint);
+
 
 	    // SDP negotiation (offer and answer)
 	    String sdpOffer = jsonMessage.get("sdpOffer").getAsString();
@@ -162,6 +149,18 @@ public class NuboFaceJavaHandler extends TextWebSocketHandler {
 	    log.error("Exception starting session", t);
 	    error(session, t.getClass().getSimpleName() + ": " + t.getMessage());
 	}
+    }
+
+
+    private void addFaceListener()
+    {
+    	face.addOnFaceListener(new EventListener<OnFaceEvent>() {
+	    	@Override
+		    public void onEvent(OnFaceEvent event)
+    		{
+		    System.out.println("----------------Face Detected--------------------------");
+    		}	    	
+	    });	
     }
 
     private void notEnoughResources(WebSocketSession session) {
