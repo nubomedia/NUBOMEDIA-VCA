@@ -32,8 +32,8 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import org.kurento.client.EndpointStats; 
 import org.kurento.client.Stats; 
 import org.springframework.web.socket.CloseStatus; 
-
 import org.kurento.module.nuboeardetector.*;
+
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -132,7 +132,8 @@ public class NuboEarJavaHandler extends TextWebSocketHandler {
 			
 	    webRtcEndpoint.connect(ear);
 	    ear.connect(webRtcEndpoint);
-
+	    ear.activateServerEvents(1, 3000);
+	    addEarListener();
 	    // SDP negotiation (offer and answer)
 	    String sdpOffer = jsonMessage.get("sdpOffer").getAsString();
 	    String sdpAnswer = webRtcEndpoint.processOffer(sdpOffer);
@@ -157,6 +158,18 @@ public class NuboEarJavaHandler extends TextWebSocketHandler {
 	}
     }
 
+    private void addEarListener()
+    {    	
+    	ear.addOnEarListener(new EventListener<OnEarEvent>() {
+	    	@Override
+    		public void onEvent(OnEarEvent event)
+    		{
+	    		
+	    		System.out.println("-------------------------Ear Detected-------------------------" );
+    		}	    	
+		});
+
+    }
     private void notEnoughResources(WebSocketSession session) {
 	// 1. Send notEnoughResources message to client
 	JsonObject response = new JsonObject();

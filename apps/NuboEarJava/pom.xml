@@ -1,14 +1,16 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
-	<parent>
-		<groupId>com.visual-tools.nubomedia</groupId>
-		<artifactId>nubomedia-vca-parent-pom</artifactId>
-		<version>6.4.0</version>
-	</parent>
-
+	<groupId>com.visual-tools.nubomedia</groupId>
 	<artifactId>NuboEarJava</artifactId>
 	<packaging>jar</packaging>
+
+
+	<parent>	  
+	  <groupId>org.kurento</groupId>
+	  <artifactId>kurento-parent-pom</artifactId>
+	  <version>6.4.1-SNAPSHOT</version>
+	</parent>
 
 	<name>NuboEarJava Filter</name>
 	<description>NuboMedia Ear Detector Filter</description>
@@ -119,6 +121,7 @@
 					<executable>bower</executable>
 					<arguments>
 						<argument>install</argument>
+						<argument>--allow-root</argument>
 					</arguments>
 					<mainClass>${start-class}</mainClass>
 				</configuration>
@@ -133,22 +136,8 @@
 					</filesets>
 				</configuration>
 			</plugin>
-			<plugin>
-			  <groupId>org.apache.maven.plugins</groupId>
-			  <artifactId>maven-gpg-plugin</artifactId>
-			  <version>1.5</version>
-			  <executions>
-			    <execution>
-			      <id>sign-artifacts</id>
-			      <phase>verify</phase>
-			      <goals>
-				<goal>sign</goal>
-			      </goals>
-			    </execution>
-			  </executions>
-			</plugin>
-
 		</plugins>
+
 
 		<resources>
 			<resource>
@@ -172,53 +161,19 @@
 		</resources>
 	</build>
 
-	<profiles>
-		<profile>
-			<id>default</id>
-			<activation>
-				<activeByDefault>true</activeByDefault>
-			</activation>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-assembly-plugin</artifactId>
-						<configuration>
-							<descriptor>src/assembly/bin.xml</descriptor>
-							<finalName>${project.artifactId}-${project.version}</finalName>
-							<appendAssemblyId>false</appendAssemblyId>
-						</configuration>
-						<executions>
-							<execution>
-								<phase>package</phase>
-								<goals>
-									<goal>single</goal>
-								</goals>
-							</execution>
-						</executions>
-					</plugin>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-antrun-plugin</artifactId>
-						<executions>
-							<execution>
-								<phase>package</phase>
-								<configuration>
-									<tasks>
-										<copy
-											file="${project.build.directory}/target/${project.artifactId}-${project.version}-bin.zip"
-											tofile="${project.build.directory}/target/${project.artifactId}-${project.version}.zip" />
-									</tasks>
-								</configuration>
-							</execution>
-						</executions>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-		<profile>
-			<id>no-assembly</id>
-		</profile>
-	</profiles>
+
+	<repositories>
+		<repository>
+			<id>kurento-snapshots</id>
+			<name>Kurento Snapshot Repository</name>
+			<url>http://maven.kurento.org/archiva/repository/snapshots/</url>
+			<releases>
+				<enabled>false</enabled>
+			</releases>
+			<snapshots>
+				<enabled>true</enabled>
+			</snapshots>
+		</repository>
+	</repositories>
 
 </project>

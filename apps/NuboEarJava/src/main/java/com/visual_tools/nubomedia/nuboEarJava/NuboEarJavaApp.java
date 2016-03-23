@@ -33,7 +33,6 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 @EnableWebSocket
 public class NuboEarJavaApp implements WebSocketConfigurer {
 
-	final static String DEFAULT_KMS_WS_URI = "ws://localhost:8888/kurento";
 	
 
 	@Bean
