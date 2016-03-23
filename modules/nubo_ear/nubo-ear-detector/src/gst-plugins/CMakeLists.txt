@@ -1,4 +1,5 @@
 include_directories(
+  ${KMSCORE_INCLUDE_DIRS}
   ${GSTREAMER_INCLUDE_DIRS}
   ${GSTREAMER_VIDEO_INCLUDE_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -14,6 +15,7 @@ set(NUBO_EAR_DETECTOR_SOURCES
 add_library(nuboeardetector MODULE ${NUBO_EAR_DETECTOR_SOURCES})
 
 target_link_libraries(nuboeardetector
+  kmsgstcommons
   ${GSTREAMER_LIBRARIES}
   ${GSTREAMER_VIDEO_LIBRARIES}
   ${OPENCV_LIBRARIES}

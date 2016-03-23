@@ -1,16 +1,21 @@
 #include "kmseardetect.h"
-
 #include <gst/gst.h>
 #include <gst/video/video.h>
 #include <gst/video/gstvideofilter.h>
 #include <glib/gstdio.h>
+#include <string>
+#include <unistd.h>
+#include <iostream>
 #include <opencv2/opencv.hpp>
+#include <sys/time.h>
+#include <commons/kmsserializablemeta.h>
+#include <sstream>
+
+#include <commons/kms-core-marshal.h>
 
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/time.h>
-#include <unistd.h>
 
 #define PLUGIN_NAME "nuboeardetector"
 #define FACE_WIDTH 160
@@ -34,6 +39,9 @@
 #define DEFAULT_SCALE_FACTOR 25
 #define EAR_SCALE_FACTOR 1.1
 #define NUM_FRAMES_TO_PROCESS 10
+#define SERVER_EVENTS 0
+#define EVENTS_MS 30001
+#define MAX_NUM_FPS_WITH_NO_DETECTION 4
 
 //number of pixels to widen the face area
 #define EXTRA_ROI	50
@@ -62,8 +70,17 @@ enum {
   PROP_SEND_META_DATA,
   PROP_MULTI_SCALE_FACTOR,
   PROP_WIDTH_TO_PROCESS,
-  PROP_PROCESS_X_EVERY_4_FRAMES
+  PROP_PROCESS_X_EVERY_4_FRAMES,
+  PROP_ACTIVATE_SERVER_EVENTS,
+  PROP_SERVER_EVENTS_MS
 };
+
+enum {
+  SIGNAL_ON_EAR_EVENT,
+  LAST_SIGNAL
+};
+
+static guint kms_ear_detector_signals[LAST_SIGNAL] = { 0 };
 
 struct _KmsEarDetectPrivate {
 
@@ -81,14 +98,17 @@ struct _KmsEarDetectPrivate {
   int scale_factor;
   int num_frame;
   int num_frames_to_process;
-
+  int server_events;
+  int events_ms;
+  double time_events_ms;
   float scale_f2o;//origin 2 face
   float scale_f2e;//face 2 ear
   float scale_e2o;//mounth 2 origin 
   
   GRecMutex mutex;
   gboolean debug;
-    
+  int frames_with_no_detection;
+
   vector<Rect> *faces;
   vector<Rect> *ears;
   vector<Rect> *rear;
@@ -122,6 +142,14 @@ G_DEFINE_TYPE_WITH_CODE (KmsEarDetect, kms_ear_detect,
 static CascadeClassifier fcascade;
 static CascadeClassifier lecascade;
 static CascadeClassifier recascade;
+
+template<typename T>
+string toString(const T& value)
+{
+  std::stringstream ss;
+   ss << value;
+   return ss.str();
+}
 
 static int
 kms_ear_detect_init_cascade()
@@ -157,7 +185,11 @@ static void kms_ear_send_event(KmsEarDetect *ear_detect,GstVideoFrame *frame)
   int i=0;
   char elem_id[10];
   vector<Rect> *fd=ear_detect->priv->faces;
-  vector<Rect> *ed=ear_detect->priv->ears;
+  vector<Rect> *er= ear_detect->priv->rear;    
+  vector<Rect> *el= ear_detect->priv->lear;    
+  std::string ears_str;
+  struct timeval  end; 
+  double current_t, diff_time;
 
   message= gst_structure_new_empty("message");
   ts=gst_structure_new("time",
@@ -180,7 +212,7 @@ static void kms_ear_send_event(KmsEarDetect *ear_detect,GstVideoFrame *frame)
       gst_structure_free(face);
     }
   
-  for(  vector<Rect>::const_iterator m = ed->begin(); m != ed->end(); m++,i++ )
+  for(  vector<Rect>::const_iterator m = er->begin(); m != er->end(); m++,i++ )
     {
       ear = gst_structure_new("ear",
 			       "type", G_TYPE_STRING,"ear", 
@@ -192,10 +224,52 @@ static void kms_ear_send_event(KmsEarDetect *ear_detect,GstVideoFrame *frame)
       sprintf(elem_id,"%d",i);
       gst_structure_set(message,elem_id,GST_TYPE_STRUCTURE, ear,NULL);
       gst_structure_free(ear);
+      std::string new_ear ("x:" + toString((guint) m->x ) + 
+			    ",y:" + toString((guint) m->y ) + 
+			    ",width:" + toString((guint)m->width )+ 
+			    ",height:" + toString((guint)m->height )+ ";");
+      ears_str= ears_str + new_ear;
     }
-  /*post a faces detected event to src pad*/
-  event = gst_event_new_custom (GST_EVENT_CUSTOM_DOWNSTREAM, message);
-  gst_pad_push_event(ear_detect->base.element.srcpad, event);
+
+  for(  vector<Rect>::const_iterator m = el->begin(); m != el->end(); m++,i++ )
+    {
+      ear = gst_structure_new("ear",
+			       "type", G_TYPE_STRING,"ear", 
+			       "x", G_TYPE_UINT,(guint) m->x, 
+			       "y", G_TYPE_UINT,(guint) m->y, 
+			       "width",G_TYPE_UINT, (guint)m->width,
+			       "height",G_TYPE_UINT, (guint)m->height,
+			       NULL);
+      sprintf(elem_id,"%d",i);
+      gst_structure_set(message,elem_id,GST_TYPE_STRUCTURE, ear,NULL);
+      gst_structure_free(ear);
+
+      std::string new_ear ("x:" + toString((guint) m->x ) + 
+			   ",y:" + toString((guint) m->y ) + 
+			   ",width:" + toString((guint)m->width )+ 
+			   ",height:" + toString((guint)m->height )+ ";");
+      ears_str= ears_str + new_ear;
+    }
+
+    if ((int)el->size()>0 || (int)er->size()>0)
+    {
+
+      gettimeofday(&end,NULL);
+      current_t= ((end.tv_sec * 1000.0) + ((end.tv_usec)/1000.0));
+      diff_time = current_t - ear_detect->priv->time_events_ms;
+
+      if (1 == ear_detect->priv->server_events && diff_time > ear_detect->priv->events_ms)
+	{
+	  ear_detect->priv->time_events_ms=current_t;
+	  g_signal_emit (G_OBJECT (ear_detect),
+			 kms_ear_detector_signals[SIGNAL_ON_EAR_EVENT], 0,ears_str.c_str());
+	}
+      
+      /*info about the ear detected added as a metada*/
+      /*if (1 == ear_detect->priv->meta_data)    
+	kms_buffer_add_serializable_meta (frame->buffer,message);  */
+
+    }
 	
 }
 
@@ -233,7 +307,7 @@ kms_ear_detect_set_property (GObject *object, guint property_id,
 			     const GValue *value, GParamSpec *pspec)
 {
   KmsEarDetect *ear_detect = KMS_EAR_DETECT (object);
-
+  struct timeval  t; 
   //Changing values of the properties is a critical region because read/write
   //concurrently could produce race condition. For this reason, the following
   //code is protected with a mutex   
@@ -265,6 +339,17 @@ kms_ear_detect_set_property (GObject *object, guint property_id,
     ear_detect->priv->width_to_process = g_value_get_int(value);
     break;
 
+
+  case  PROP_ACTIVATE_SERVER_EVENTS:
+    ear_detect->priv->server_events = g_value_get_int(value);
+    gettimeofday(&t,NULL);
+    ear_detect->priv->time_events_ms= ((t.tv_sec * 1000.0) + ((t.tv_usec)/1000.0));
+    
+    break;
+    
+  case PROP_SERVER_EVENTS_MS:
+    ear_detect->priv->events_ms = g_value_get_int(value);
+    break;   
 
   default:
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);    
@@ -311,6 +396,14 @@ kms_ear_detect_get_property (GObject *object, guint property_id,
     g_value_set_int(value,ear_detect->priv->width_to_process);
     break;
 
+  case  PROP_ACTIVATE_SERVER_EVENTS:
+    g_value_set_int(value,ear_detect->priv->server_events);
+    break;
+    
+  case PROP_SERVER_EVENTS_MS:
+    g_value_set_int(value,ear_detect->priv->events_ms);
+    break;
+
   default:
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
     break;
@@ -347,13 +440,23 @@ static void kms_ear_detect_find_ears(KmsEarDetect *ear_detect, const Mat& face_i
 
   if (ears->size() > 0)
 	ears->clear();
+  else
+    {
+      if (ear_detect->priv->frames_with_no_detection < MAX_NUM_FPS_WITH_NO_DETECTION)
+	ear_detect->priv->frames_with_no_detection+=1;
+      else 
+	{
+	  ear_detect->priv->frames_with_no_detection =0;
+	  ears->clear(); 	    	    
+	}
+    }
       
   for( vector<Rect>::iterator r = faces->begin(); r != faces->end(); r++)
     {
       const int top_height=cvRound((float)r->height*TOP_PERCENTAGE/100);
       const int down_height=cvRound((float)r->height*DOWN_PERCENTAGE/100);
 
-            //printing faces
+      //printing faces
       //Transforming the point detected in face image to ear coordinates
       //we only take the down half of the face to avoid excessive processing	
       if (LEFT_SIDE == side)
@@ -363,8 +466,7 @@ static void kms_ear_detect_find_ears(KmsEarDetect *ear_detect, const Mat& face_i
 	  r->height = (r->height-down_height)*scale_f2e;
 	  r->width = (r->width/2 )*scale_f2e+EXTRA_ROI;
 	  ////EXTRA_ROI As the ear is in the extreme of the face, 
-	  //we need an extra area to detect it in right way
-	  
+	  //we need an extra area to detect it in right way	  
 	  if (r->x + r->width > ear_img.cols) r->width=ear_img.cols - r->x -1; 
 	}
       else 
@@ -467,7 +569,7 @@ static void kms_ear_detect_process_frame(KmsEarDetect *ear_detect,int width,int 
       kms_ear_detect_find_ears(ear_detect,rightImg,ear_frame,&recascade,
 			       scale_f2e,scale_e2o,scale_f2o,
 			       leftImg.cols,RIGHT_SIDE);
-      
+
     }     
 
   
@@ -518,8 +620,8 @@ kms_ear_detect_transform_frame_ip (GstVideoFilter *filter,
 
   kms_ear_detect_process_frame(ear_detect,width,height,scale_f2e,scale_e2o,scale_f2o);        
 
-  if (1==ear_detect->priv->meta_data)
-    kms_ear_send_event(ear_detect,frame);
+
+  kms_ear_send_event(ear_detect,frame);
     
 
   ear_detect->priv->faces->clear();
@@ -588,6 +690,7 @@ kms_ear_detect_init (KmsEarDetect *
   ear_detect->priv->num_frame=0;
   ear_detect->priv->scale_factor=DEFAULT_SCALE_FACTOR;
   ear_detect->priv->width_to_process=EAR_WIDTH;
+  ear_detect->priv->frames_with_no_detection=0;
 
   if (fcascade.empty())
     if (kms_ear_detect_init_cascade() < 0)      
@@ -658,9 +761,26 @@ kms_ear_detect_class_init (KmsEarDetectClass *ear)
 				   g_param_spec_int ("multi-scale-factor", "multi scale factor",
 						     "5-50  (25 default) => specifying how much the image size is reduced at each image scale.", 
 						     0,51,FALSE, (GParamFlags) G_PARAM_READWRITE));
-	  
+
+  g_object_class_install_property (gobject_class,   PROP_ACTIVATE_SERVER_EVENTS,
+				   g_param_spec_int ("activate-events", "Activate Events",
+						     "(0 default) => It will not send events to server, 1 => it will send events to the server", 
+						     0,1,FALSE, (GParamFlags) G_PARAM_READWRITE));
+  
+  g_object_class_install_property (gobject_class,   PROP_SERVER_EVENTS_MS,
+				   g_param_spec_int ("events-ms",  "Activate Events",
+						     "the time, it takes to send events to the servers", 
+						     0,30000,FALSE, (GParamFlags) G_PARAM_READWRITE));
+
   video_filter_class->transform_frame_ip =
     GST_DEBUG_FUNCPTR (kms_ear_detect_transform_frame_ip);
+
+  kms_ear_detector_signals[SIGNAL_ON_EAR_EVENT] =
+    g_signal_new ("ear-event",
+		  G_TYPE_FROM_CLASS (ear),
+		  G_SIGNAL_RUN_LAST,
+		  0, NULL, NULL, NULL,
+		  G_TYPE_NONE, 1, G_TYPE_STRING);
 
   /*Properties initialization*/
   g_type_class_add_private (ear, sizeof (KmsEarDetectPrivate) );

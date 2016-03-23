@@ -43,7 +43,7 @@ public:
 
   NuboEarDetectorImpl (const boost::property_tree::ptree &config, std::shared_ptr<MediaPipeline> mediaPipeline);
 
-  virtual ~NuboEarDetectorImpl () {};
+  virtual ~NuboEarDetectorImpl ();
 
   void showEars (int viewEars);
   void detectByEvent(int event);
@@ -51,7 +51,9 @@ public:
   void multiScaleFactor(int scaleFactor);
   void processXevery4Frames(int xper4);
   void widthToProcess(int width);
+  void activateServerEvents (int activate,int ms);
 
+  sigc::signal<void, OnEar> signalOnEar;
   /* Next methods are automatically implemented by code generator */
   virtual bool connect (const std::string &eventType, std::shared_ptr<EventHandler> handler);
   virtual void invoke (std::shared_ptr<MediaObjectImpl> obj,
@@ -60,8 +62,16 @@ public:
 
   virtual void Serialize (JsonSerializer &serializer);
 
+protected: 
+  virtual void postConstructor ();
+
 private:
   GstElement *nubo_ear = NULL;
+
+  gulong handlerOnEarEvent = 0;
+  void onEar (gchar *);
+  void split_message (std::string fi, std::string delimiter, std::vector<std::string> *v);
+
   class StaticConstructor
   {
   public:
