@@ -18,7 +18,6 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import org.kurento.client.EndpointStats; 
 import org.kurento.client.Stats; 
 import org.springframework.web.socket.CloseStatus; 
-
 import org.kurento.module.nubotracker.*;
 
 import com.google.gson.Gson;
@@ -126,7 +125,8 @@ public class NuboTrackerJavaHandler extends TextWebSocketHandler {
 			
 	    webRtcEndpoint.connect(tracker);
 	    tracker.connect(webRtcEndpoint);
-			
+		tracker.activateServerEvents(1, 3000);
+		addTrackerListener();
 	    // SDP negotiation (offer and answer)
 	    String sdpOffer = jsonMessage.get("sdpOffer").getAsString();
 	    String sdpAnswer = webRtcEndpoint.processOffer(sdpOffer);
@@ -159,6 +159,18 @@ public class NuboTrackerJavaHandler extends TextWebSocketHandler {
 	release(session);
     } 
 
+    private void addTrackerListener()
+    {    	
+    	tracker.addOnTrackerListener(new EventListener<OnTrackerEvent>() {
+	    	@Override
+    		public void onEvent(OnTrackerEvent event)
+    		{
+	    		System.out.println("----------------Object Detected--------------------------");
+    		}	    	
+		});
+
+    }
+    
     private void setThreshold(WebSocketSession session, JsonObject jsonObject) {
 					
 	int threshold;
@@ -285,5 +297,4 @@ public class NuboTrackerJavaHandler extends TextWebSocketHandler {
 	log.info("Closed websocket connection of session {}", session.getId());
 	release(session);
     }
-
 }

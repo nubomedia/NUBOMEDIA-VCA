@@ -19,7 +19,7 @@ import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry
 
 public class NuboTrackerJavaApp implements WebSocketConfigurer {
 
-	final static String DEFAULT_KMS_WS_URI = "ws://localhost:8888/kurento";
+    //final static String DEFAULT_KMS_WS_URI = "ws://localhost:8888/kurento";
 	
 
 	@Bean

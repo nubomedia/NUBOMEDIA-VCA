@@ -13,7 +13,7 @@
  *
  */
 
-var ws = new WebSocket('ws://' + location.host + '/nubotracker');
+var ws = new WebSocket('wss://' + location.host + '/nubotracker');
 var videoInput;
 var videoOutput;
 var webRtcPeer;
