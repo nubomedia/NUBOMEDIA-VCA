@@ -161,16 +161,16 @@ public class NuboFaceProfileJavaHandler extends TextWebSocketHandler {
 	    /******** Media Logic ********/
 	    face = new NuboFaceDetector.Builder(user.getMediaPipeline()).build();
 	    face.sendMetaData(1);
-	    face.detectByEvent(0);
+	    face.detectByEvent(0);	  
 	    face.showFaces(0);
-			
+	    
 	    mouth = new NuboMouthDetector.Builder(user.getMediaPipeline()).build();
-	    mouth.sendMetaData(0);
+	    mouth.sendMetaData(1);
 	    mouth.detectByEvent(1);
 	    mouth.showMouths(0);
 
 	    nose = new NuboNoseDetector.Builder(user.getMediaPipeline()).build();
-	    nose.sendMetaData(0);
+	    nose.sendMetaData(1);
 	    nose.detectByEvent(1);
 	    nose.showNoses(0);
 			
@@ -181,7 +181,7 @@ public class NuboFaceProfileJavaHandler extends TextWebSocketHandler {
 			
 	    webRtcEndpoint.connect(face);
 			 	
-	    face.connect(mouth);			
+	    face.connect(mouth);				
 	    mouth.connect(nose);
 	    nose.connect(eye);			
 	    eye.connect(webRtcEndpoint);
