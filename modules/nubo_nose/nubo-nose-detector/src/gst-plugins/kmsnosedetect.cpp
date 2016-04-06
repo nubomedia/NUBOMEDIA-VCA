@@ -170,6 +170,34 @@ kms_nose_detect_init_cascade()
 
 
 
+static gboolean kms_nose_detect_sink_events(GstBaseTransform * trans, GstEvent * event)
+{
+  gboolean ret;
+  KmsNoseDetect *nose = KMS_NOSE_DETECT(trans);
+
+  switch (GST_EVENT_TYPE (event)) {
+  case GST_EVENT_CUSTOM_DOWNSTREAM:
+    {
+      GstStructure *message;
+
+      GST_OBJECT_LOCK (nose);
+
+      message = gst_structure_copy (gst_event_get_structure (event));
+
+      g_queue_push_tail (nose->priv->events_queue, message);
+
+      GST_OBJECT_UNLOCK (nose);
+      break;
+    }
+  default:
+    break;
+  }
+
+  ret=  gst_pad_event_default (trans->sinkpad, GST_OBJECT (trans), event);
+
+  return ret;
+}
+
 static void kms_nose_send_event(KmsNoseDetect *nose_detect,GstVideoFrame *frame)
 {
   GstStructure *face,*nose;
@@ -224,10 +252,13 @@ static void kms_nose_send_event(KmsNoseDetect *nose_detect,GstVideoFrame *frame)
 	}
       
       /*Adding data as a metadata in the video*/
-      if (1 == nose_detect->priv->meta_data)    	
-	  kms_buffer_add_serializable_meta (frame->buffer,message);  	
+      /*if (1 == nose_detect->priv->meta_data)    	
+	kms_buffer_add_serializable_meta (frame->buffer,message);  	*/      
     }
 	
+  event = gst_event_new_custom (GST_EVENT_CUSTOM_DOWNSTREAM, message);
+  gst_pad_push_event(nose_detect->base.element.srcpad, event);
+
 }
 
 
@@ -405,6 +436,8 @@ static bool __get_event_message(KmsNoseDetect *nose,
   len = gst_structure_n_fields (message);
 
   nose->priv->faces->clear();
+  FILE *f=fopen("/tmp/nose.log","a");
+
 
   for (aux = 0; aux < len; aux++) {
     GstStructure *data;
@@ -420,7 +453,7 @@ static bool __get_event_message(KmsNoseDetect *nose,
       //type of the structure
       gst_structure_get (data, "type", G_TYPE_STRING, &str_type, NULL);
       
-      
+      fprintf(f,"Data received type %s \n", str_type);
       if (g_strcmp0(str_type,FACE_TYPE)==0)//only interested on FACE EVENTS
 	{
 	  Rect r;
@@ -435,7 +468,8 @@ static bool __get_event_message(KmsNoseDetect *nose,
       result=true;
     }  
   }
-          
+
+  fclose(f);
   return result;
 }
 
@@ -443,18 +477,35 @@ static bool __receive_event(KmsNoseDetect *nose_detect,GstVideoFrame *frame)
 {
   KmsSerializableMeta *metadata;
   gboolean res = false;
+  GstStructure *message;
+  gboolean ret = false;
   //if detect_event is false it does not matter the event received
 
 
   if (0==nose_detect->priv->detect_event) return true;
+  
+  if (g_queue_get_length(nose_detect->priv->events_queue) == 0) 
+    return false;
+  
+  message= (GstStructure *) g_queue_pop_head(nose_detect->priv->events_queue);
+  
+  if (NULL != message)
+    {
+      
+      ret=__get_timestamp(nose_detect,message);
 
+      if ( ret )
+	{
+	  res = __get_event_message(nose_detect,message);	  
+	}
+    }
 
-  metadata = kms_buffer_get_serializable_meta(frame->buffer);
+  /*metadata = kms_buffer_get_serializable_meta(frame->buffer);
 
   if (NULL == metadata)   
     return false;
 
-  res = __get_event_message(nose_detect,metadata->data);	  
+    res = __get_event_message(nose_detect,metadata->data);	  */
 
   if (res) 
     nose_detect->priv->num_frames_to_process = NUM_FRAMES_TO_PROCESS /
@@ -542,6 +593,9 @@ kms_nose_detect_process_frame(KmsNoseDetect *nose_detect,int width,int height,do
 				    CV_RGB(0,0,255)} ;
 
 
+  FILE *f=fopen("/tmp/nose.log","a");
+  fprintf(f,"\n ----------------- Iteration -------------------- \n");
+  fclose(f);
   if ( ! __receive_event(nose_detect,frame) && nose_detect->priv->num_frames_to_process <=0)
     return;
 
@@ -662,7 +716,8 @@ kms_nose_detect_transform_frame_ip (GstVideoFilter *filter,
 
   KMS_NOSE_DETECT_UNLOCK (nose_detect);
 
-  kms_nose_send_event(nose_detect,frame);
+  if (1==nose_detect->priv->meta_data)
+    kms_nose_send_event(nose_detect,frame);
 
   gst_buffer_unmap (frame->buffer, &info);
 
@@ -830,6 +885,9 @@ g_object_class_install_property (gobject_class, PROP_WIDTH_TO_PROCCESS,
 
   /*Properties initialization*/
   g_type_class_add_private (nose, sizeof (KmsNoseDetectPrivate) );
+  
+  nose->base_nose_detect_class.parent_class.sink_event =
+    GST_DEBUG_FUNCPTR(kms_nose_detect_sink_events);
 
 }
 

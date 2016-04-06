@@ -208,6 +208,9 @@ static void kms_face_send_event(KmsFaceDetect *face_detect,GstVideoFrame *frame,
       faces_str= faces_str + new_face;
     }
 
+  event = gst_event_new_custom (GST_EVENT_CUSTOM_DOWNSTREAM, message);
+  gst_pad_push_event(face_detect->base.element.srcpad, event);
+
   if ((int)fd->size()>0)
     {
 
@@ -223,14 +226,40 @@ static void kms_face_send_event(KmsFaceDetect *face_detect,GstVideoFrame *frame,
 	}
       
       /*Adding data as a metadata in the video*/
-      if (1 == face_detect->priv->meta_data)    	
-	  kms_buffer_add_serializable_meta (frame->buffer,message);  
-	
+      /*if (1 == face_detect->priv->meta_data)    	
+	kms_buffer_add_serializable_meta (frame->buffer,message);  */	
     }
+
 
 }
 
+//delete this function when metadata will be used
+static gboolean kms_face_detect_sink_events(GstBaseTransform * trans, GstEvent * event)
+{
+  gboolean ret;
+  KmsFaceDetect *face = KMS_FACE_DETECT(trans);
 
+  switch (GST_EVENT_TYPE (event)) {
+  case GST_EVENT_CUSTOM_DOWNSTREAM:
+    {
+      GstStructure *message;
+
+      GST_OBJECT_LOCK (face);
+
+      message = gst_structure_copy (gst_event_get_structure (event));
+      g_queue_push_tail (face->priv->events_queue, message);
+
+      GST_OBJECT_UNLOCK (face);
+      break;
+    }
+  default:
+    break;
+  }
+  //ret = gst_pad_push_event (trans->srcpad, event);
+  ret=  gst_pad_event_default (trans->sinkpad, GST_OBJECT (trans), event);
+
+  return ret;
+}
 
 static void
 kms_face_detect_conf_images (KmsFaceDetect *face_detect,
@@ -455,31 +484,43 @@ static bool __get_event_message(GstStructure *message)
 static bool __receive_event(KmsFaceDetect *face_detect, GstVideoFrame *frame)
 {
   bool res=false;
-
+  GstStructure *message;
   KmsSerializableMeta *metadata;
+  gboolean ret=false;
 
-  KMS_FACE_DETECT_LOCK (face_detect);
-  metadata=kms_buffer_get_serializable_meta(frame->buffer);
+  //Uncomment the following line to use the metadata
+  //metadata=kms_buffer_get_serializable_meta(frame->buffer);
 
   //if detect_event is false it does not matter the event received
   if (0==face_detect->priv->detect_event) {
-    KMS_FACE_DETECT_UNLOCK (face_detect); 
+
     return true;
   }
 
-  if ( NULL == metadata) 
-    {
-      KMS_FACE_DETECT_UNLOCK (face_detect); 
+  if (g_queue_get_length(face_detect->priv->events_queue) == 0) 
+    return false;
+  //Uncomment the following line to use the metadata
+  /*if ( NULL == metadata) 
+    return false;*/
 
-      return false;
+  message= (GstStructure *) g_queue_pop_head(face_detect->priv->events_queue);
+  if (NULL != message)
+    {
+      ret=__get_timestamp(face_detect,message);
+      
+      if ( ret )
+	{
+	  res = __get_event_message(message);	  
+	}
+      
     }
-    
-  res = __get_event_message(metadata->data);	  
+
+  //Uncomment the following line to use the metadata
+  /*res = __get_event_message(metadata->data);	  
      
   if (res) 
-    face_detect->priv->num_frames_to_process = NUM_FRAMES_TO_PROCESS;
+  face_detect->priv->num_frames_to_process = NUM_FRAMES_TO_PROCESS;*/
   
-  KMS_FACE_DETECT_UNLOCK (face_detect); 
 
   return res;
 }
@@ -567,10 +608,12 @@ kms_face_detect_transform_frame_ip (GstVideoFilter *filter,
   height = face_detect->priv->img_height;
   width_to_process = face_detect->priv->width_to_process;
 
-  KMS_FACE_DETECT_UNLOCK (face_detect); 
-
   kms_face_detect_process_frame(face_detect,width,height,scale,frame);
-  kms_face_send_event(face_detect,frame,width_to_process);
+
+  if (1 == face_detect->priv->meta_data) //delete this line to use metadata
+    kms_face_send_event(face_detect,frame,width_to_process);
+
+  KMS_FACE_DETECT_UNLOCK (face_detect); 
     
 
   gst_buffer_unmap (frame->buffer, &info);
@@ -772,6 +815,9 @@ g_object_class_install_property (gobject_class,   PROP_AREA_THRESHOLD,
 		  G_TYPE_NONE, 1, G_TYPE_STRING);
   
   g_type_class_add_private (face, sizeof (KmsFaceDetectPrivate) );  
+
+  face->base_face_detect_class.parent_class.sink_event =
+    GST_DEBUG_FUNCPTR(kms_face_detect_sink_events);
 
 }
 

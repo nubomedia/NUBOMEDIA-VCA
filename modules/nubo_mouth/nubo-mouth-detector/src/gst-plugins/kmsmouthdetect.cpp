@@ -155,10 +155,36 @@ kms_mouth_detect_init_cascade()
   return 0;
 }
 
+static gboolean kms_mouth_detect_sink_events(GstBaseTransform * trans, GstEvent * event)
+{
+  gboolean ret;
+  KmsMouthDetect *mouth = KMS_MOUTH_DETECT(trans);
 
+  switch (GST_EVENT_TYPE (event)) {
+  case GST_EVENT_CUSTOM_DOWNSTREAM:
+    {
+      GstStructure *message;
+
+      GST_OBJECT_LOCK (mouth);
+
+      message = gst_structure_copy (gst_event_get_structure (event));
+
+      g_queue_push_tail (mouth->priv->events_queue, message);
+
+      GST_OBJECT_UNLOCK (mouth);
+      break;
+    }
+  default:
+    break;
+  }
+  ret=  gst_pad_event_default (trans->sinkpad, GST_OBJECT (trans), event);
+
+  return ret;
+}
 
 static void kms_mouth_send_event(KmsMouthDetect *mouth_detect,GstVideoFrame *frame)
 {
+  GstEvent *event;
   GstStructure *face,*mouth;
   GstStructure *ts;
   GstStructure *message;
@@ -178,7 +204,7 @@ static void kms_mouth_send_event(KmsMouthDetect *mouth_detect,GstVideoFrame *fra
   gst_structure_set(message,"timestamp",GST_TYPE_STRUCTURE, ts,NULL);
   gst_structure_free(ts);
 		
-  /*for(  vector<Rect>::const_iterator r = fd->begin(); r != fd->end(); r++,i++ )
+  for(  vector<Rect>::const_iterator r = fd->begin(); r != fd->end(); r++,i++ )
     {
       face = gst_structure_new("face",
 			       "type", G_TYPE_STRING,"face", 
@@ -190,7 +216,7 @@ static void kms_mouth_send_event(KmsMouthDetect *mouth_detect,GstVideoFrame *fra
       sprintf(elem_id,"%d",i);
       gst_structure_set(message,elem_id,GST_TYPE_STRUCTURE, face,NULL);
       gst_structure_free(face);
-    }*/
+    }
   
 
   //mouths were already normalized on kms_mouth_detect_process_frame.
@@ -214,6 +240,9 @@ static void kms_mouth_send_event(KmsMouthDetect *mouth_detect,GstVideoFrame *fra
       mouths_str= mouths_str + new_mouth;
     }
 
+  event = gst_event_new_custom (GST_EVENT_CUSTOM_DOWNSTREAM, message);
+  gst_pad_push_event(mouth_detect->base.element.srcpad, event);	
+
   if ((int)md->size()>0)
     {
 
@@ -229,11 +258,14 @@ static void kms_mouth_send_event(KmsMouthDetect *mouth_detect,GstVideoFrame *fra
 	}
       
       /*info about the mouth detected added as a metada*/
-      if (1 == mouth_detect->priv->meta_data)    
-	kms_buffer_add_serializable_meta (frame->buffer,message);  
+      /*if (1 == mouth_detect->priv->meta_data)    
+	kms_buffer_add_serializable_meta (frame->buffer,message);  */
+
+
     }
-	
 }
+
+
 
 static void
 kms_mouth_detect_conf_images (KmsMouthDetect *mouth_detect,
@@ -447,19 +479,35 @@ static bool __get_event_message(KmsMouthDetect *mouth,
 static bool __receive_event(KmsMouthDetect *mouth_detect, GstVideoFrame *frame)
 {
   KmsSerializableMeta *metadata;
+  GstStructure *message;
   bool res=false;
+  gboolean ret = false;
 
   //if detect_event is false it does not matter the event received
 
   if (0==mouth_detect->priv->detect_event) return true;
 
-  metadata=kms_buffer_get_serializable_meta(frame->buffer);
-
-
-  if (NULL == metadata)
+  if (g_queue_get_length(mouth_detect->priv->events_queue) == 0) 
     return false;
+  
+  message= (GstStructure *) g_queue_pop_head(mouth_detect->priv->events_queue);
 
-  res = __get_event_message(mouth_detect,metadata->data);
+  if (NULL != message)
+    {
+
+      ret=__get_timestamp(mouth_detect,message);
+       //if ( ret && mouth_detect->priv->pts == f_pts)
+      if ( ret )
+	{
+	  res = __get_event_message(mouth_detect,message);	  
+	}
+    }
+
+  /*metadata=kms_buffer_get_serializable_meta(frame->buffer);
+  if (NULL == metadata)
+  return false;
+
+  res = __get_event_message(mouth_detect,metadata->data);*/
 
   if (res) 
     mouth_detect->priv->num_frames_to_process = NUM_FRAMES_TO_PROCESS / 
@@ -656,7 +704,8 @@ kms_mouth_detect_transform_frame_ip (GstVideoFilter *filter,
   kms_mouth_detect_process_frame(mouth_detect,width,height,scale_f2m,
 				 scale_m2o,scale_o2f,frame);
 	
-  kms_mouth_send_event(mouth_detect,frame);
+  if (1==mouth_detect->priv->meta_data)
+    kms_mouth_send_event(mouth_detect,frame);
     
   KMS_MOUTH_DETECT_UNLOCK (mouth_detect);
 
@@ -819,7 +868,8 @@ kms_mouth_detect_class_init (KmsMouthDetectClass *mouth)
   /*Properties initialization*/
   g_type_class_add_private (mouth, sizeof (KmsMouthDetectPrivate) );
 
-
+  mouth->base_mouth_detect_class.parent_class.sink_event =
+    GST_DEBUG_FUNCPTR(kms_mouth_detect_sink_events);
 }
 
 gboolean

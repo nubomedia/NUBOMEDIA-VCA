@@ -116,8 +116,8 @@ public class NuboEyeJavaHandler extends TextWebSocketHandler {
 			
 	    webRtcEndpoint.connect(eye);
 	    eye.connect(webRtcEndpoint);
-	    eye.activateServerEvents(1, 3000);
-	    addEyeListener();
+	    //eye.activateServerEvents(1, 3000);
+	    //addEyeListener();
 	    // SDP negotiation (offer and answer)
 	    String sdpOffer = jsonMessage.get("sdpOffer").getAsString();
 	    String sdpAnswer = webRtcEndpoint.processOffer(sdpOffer);
@@ -151,7 +151,7 @@ public class NuboEyeJavaHandler extends TextWebSocketHandler {
 	release(session);
     } 
 
-    private void addEyeListener()
+  /*  private void addEyeListener()
     {
     	eye.addOnEyeListener(new EventListener<OnEyeEvent>() {
     		@Override
@@ -160,7 +160,7 @@ public class NuboEyeJavaHandler extends TextWebSocketHandler {
     			System.out.println("---------------------Eyes Detected---------------------");
     		}
 		});
-    }
+    }*/
     private void setVisualization(WebSocketSession session,JsonObject jsonObject)
     {
 

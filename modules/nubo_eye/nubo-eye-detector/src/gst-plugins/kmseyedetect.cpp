@@ -216,6 +216,7 @@ static void kms_eye_send_event(KmsEyeDetect *eye_detect,GstVideoFrame *frame)
   std::string eyes_str = "";
   struct timeval  end; 
   double current_t, diff_time;
+  GstEvent *event;
 
   message= gst_structure_new_empty("message");
   ts=gst_structure_new("time",
@@ -282,9 +283,13 @@ static void kms_eye_send_event(KmsEyeDetect *eye_detect,GstVideoFrame *frame)
 	  		 kms_eye_detector_signals[SIGNAL_ON_EYE_EVENT], 0,eyes_str.c_str());
 	}
             /*Adding data as a metadata in the video*/
-      if (1 == eye_detect->priv->meta_data)    	
-	kms_buffer_add_serializable_meta (frame->buffer,message);  	
+      /* if (1 == eye_detect->priv->meta_data)    	
+	 kms_buffer_add_serializable_meta (frame->buffer,message); */
     }
+
+  //post a faces detected event to src pad7
+  event = gst_event_new_custom (GST_EVENT_CUSTOM_DOWNSTREAM, message);
+  gst_pad_push_event(eye_detect->base.element.srcpad, event); 
 }
 
 static void
@@ -495,16 +500,34 @@ static bool __receive_event(KmsEyeDetect *eye_detect, GstVideoFrame *frame)
 {
   KmsSerializableMeta *metadata;
   gboolean res = false;
+  GstStructure *message;
+  gboolean ret = false;
   //if detect_event is false it does not matter the event received
 
   if (0==eye_detect->priv->detect_event) return true;
 
-  metadata = kms_buffer_get_serializable_meta(frame->buffer);
+  if (g_queue_get_length(eye_detect->priv->events_queue) == 0) 
+    return false;
+  
+  message= (GstStructure *) g_queue_pop_head(eye_detect->priv->events_queue);
+  
+  if (NULL != message)
+    {
+      
+      ret=__get_timestamp(eye_detect,message);
+      
+      if ( ret )
+	{
+	  res = __get_event_message(eye_detect,message);	  
+	}
+    }
+
+  /*metadata = kms_buffer_get_serializable_meta(frame->buffer);
 
   if (NULL == metadata)   
     return false;
 
-  res = __get_event_message(eye_detect,metadata->data);	  
+    res = __get_event_message(eye_detect,metadata->data);	  */
 
   if (res) 
     eye_detect->priv->num_frames_to_process = NUM_FRAMES_TO_PROCESS / 
@@ -870,8 +893,8 @@ kms_eye_detect_transform_frame_ip (GstVideoFilter *filter,
   kms_eye_detect_process_frame(eye_detect,width,height,scale_o2f,
 			       scale_o2e,scale_f2e,frame);
   
-  
-  kms_eye_send_event(eye_detect,frame);
+  if (1==eye_detect->priv->meta_data)
+    kms_eye_send_event(eye_detect,frame);
 
   gst_buffer_unmap (frame->buffer, &info);
 
