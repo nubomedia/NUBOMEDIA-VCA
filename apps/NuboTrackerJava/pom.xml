@@ -79,7 +79,7 @@
 		<dependency>
 			<groupId>com.visual-tools.nubomedia</groupId>
 			<artifactId>nubotracker</artifactId>
-			<version>6.4.0</version>
+			<version>6.4.01</version>
 		</dependency>
 
 		<dependency>
