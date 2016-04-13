@@ -158,7 +158,7 @@ public class NuboFaceProfileJavaHandler extends TextWebSocketHandler {
 		    }
 		});
 
-	    /******** Media Logic ********/
+	    /******** Media Logic ********/	    
 	    face = new NuboFaceDetector.Builder(user.getMediaPipeline()).build();
 	    face.sendMetaData(1);
 	    face.detectByEvent(0);	  
@@ -337,24 +337,24 @@ public class NuboFaceProfileJavaHandler extends TextWebSocketHandler {
     {
     	
     	try {
-	    Map<String,Stats> wr_stats= webRtcEndpoint.getStats();
+    		Map<String,Stats> wr_stats= webRtcEndpoint.getStats();
     	
-	    for (Stats s :  wr_stats.values()) {
-    		
-		switch (s.getType()) {		
-		case endpoint:
-		    EndpointStats end_stats= (EndpointStats) s;
-		    double e2eVideLatency= end_stats.getVideoE2ELatency() / 1000000;
+    		for (Stats s :  wr_stats.values()) {    			
+    			switch (s.getType()) {
+    			
+    			case endpoint:
+    				EndpointStats end_stats= (EndpointStats) s;
+    				double e2eVideLatency= end_stats.getVideoE2ELatency() / 1000000;
     				
-		    JsonObject response = new JsonObject();
-		    response.addProperty("id", "videoE2Elatency");
-		    response.addProperty("message", e2eVideLatency);	
-		    sendMessage(session,new TextMessage(response.toString()));				
-		    break;	
-		default:	
-		    break;
-		}				
-	    }
+    				JsonObject response = new JsonObject();
+    				response.addProperty("id", "videoE2Elatency");
+    				response.addProperty("message", e2eVideLatency);	
+    				sendMessage(session,new TextMessage(response.toString()));				
+    				break;	
+    			default:	
+    				break;
+    			}				
+    		}
     	} catch (Throwable t) {
 	    log.error("Exception getting stats...", t);
 	}

@@ -516,10 +516,10 @@ static bool __receive_event(KmsFaceDetect *face_detect, GstVideoFrame *frame)
     }
 
   //Uncomment the following line to use the metadata
-  /*res = __get_event_message(metadata->data);	  
+  /*res = __get_event_message(metadata->data);	  */
      
   if (res) 
-  face_detect->priv->num_frames_to_process = NUM_FRAMES_TO_PROCESS;*/
+    face_detect->priv->num_frames_to_process = NUM_FRAMES_TO_PROCESS;
   
 
   return res;
