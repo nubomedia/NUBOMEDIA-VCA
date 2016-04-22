@@ -69,7 +69,8 @@ void NuboFaceDetectorImpl::onFace (gchar *message)
 
   bool register_completed=true;
   int i=0;
-  
+
+ 
   try {
     
     split_message(message,del1,faces);

@@ -704,8 +704,8 @@ kms_mouth_detect_transform_frame_ip (GstVideoFilter *filter,
   kms_mouth_detect_process_frame(mouth_detect,width,height,scale_f2m,
 				 scale_m2o,scale_o2f,frame);
 	
-  if (1==mouth_detect->priv->meta_data)
-    kms_mouth_send_event(mouth_detect,frame);
+
+  kms_mouth_send_event(mouth_detect,frame);
     
   KMS_MOUTH_DETECT_UNLOCK (mouth_detect);
 

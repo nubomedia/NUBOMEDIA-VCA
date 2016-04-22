@@ -716,8 +716,7 @@ kms_nose_detect_transform_frame_ip (GstVideoFilter *filter,
 
   KMS_NOSE_DETECT_UNLOCK (nose_detect);
 
-  if (1==nose_detect->priv->meta_data)
-    kms_nose_send_event(nose_detect,frame);
+  kms_nose_send_event(nose_detect,frame);
 
   gst_buffer_unmap (frame->buffer, &info);
 

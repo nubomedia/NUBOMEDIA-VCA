@@ -214,6 +214,7 @@ static void kms_face_send_event(KmsFaceDetect *face_detect,GstVideoFrame *frame,
   if ((int)fd->size()>0)
     {
 
+      
       gettimeofday(&end,NULL);
       current_t= ((end.tv_sec * 1000.0) + ((end.tv_usec)/1000.0));
       diff_time = current_t - face_detect->priv->time_events_ms;
@@ -610,8 +611,7 @@ kms_face_detect_transform_frame_ip (GstVideoFilter *filter,
 
   kms_face_detect_process_frame(face_detect,width,height,scale,frame);
 
-  if (1 == face_detect->priv->meta_data) //delete this line to use metadata
-    kms_face_send_event(face_detect,frame,width_to_process);
+  kms_face_send_event(face_detect,frame,width_to_process);
 
   KMS_FACE_DETECT_UNLOCK (face_detect); 
     

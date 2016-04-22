@@ -893,8 +893,8 @@ kms_eye_detect_transform_frame_ip (GstVideoFilter *filter,
   kms_eye_detect_process_frame(eye_detect,width,height,scale_o2f,
 			       scale_o2e,scale_f2e,frame);
   
-  if (1==eye_detect->priv->meta_data)
-    kms_eye_send_event(eye_detect,frame);
+
+  kms_eye_send_event(eye_detect,frame);
 
   gst_buffer_unmap (frame->buffer, &info);
 
