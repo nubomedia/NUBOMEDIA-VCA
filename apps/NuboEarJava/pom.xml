@@ -78,7 +78,7 @@
 		<dependency>
 		  <groupId>com.visual-tools.nubomedia</groupId>
 		  <artifactId>nuboeardetector</artifactId>
-		  <version>6.4.01</version>
+		  <version>6.4.02</version>
 		</dependency>
 		
 		<dependency>
