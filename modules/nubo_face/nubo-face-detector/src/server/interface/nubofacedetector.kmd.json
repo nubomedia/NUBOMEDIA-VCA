@@ -1,5 +1,5 @@
 {
     "name": "nubofacedetector",
-    "version": "6.4.02",
+    "version": "6.4.03-dev",
     "kurentoVersion": "^6.0.0"
 }

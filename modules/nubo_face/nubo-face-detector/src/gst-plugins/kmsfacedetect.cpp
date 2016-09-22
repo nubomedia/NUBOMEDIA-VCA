@@ -14,6 +14,8 @@
 #include <commons/kmsserializablemeta.h>
 
 #include <commons/kms-core-marshal.h>
+#include <libsoup/soup.h>
+#include <ftw.h>
 
 #define PLUGIN_NAME "nubofacedetector"
 #define DEFAULT_FILTER_TYPE (KmsFaceDetectType)0
@@ -30,6 +32,9 @@
 #define AREA_THRESHOLD 500
 #define SERVER_EVENTS 0
 #define EVENTS_MS 30001
+
+#define TEMP_PATH "/tmp/XXXXXX"
+#define SRC_OVERLAY ((double)1)
 
 #define HAAR_CONF_FILE "/usr/share/opencv/haarcascades/haarcascade_frontalface_alt.xml"
 
@@ -65,7 +70,8 @@ enum {
   PROP_AREA_THRESHOLD,
   PROP_ACTIVATE_SERVER_EVENTS,
   PROP_SERVER_EVENTS_MS,
-  PROP_SHOW_DEBUG_INFO
+  PROP_SHOW_DEBUG_INFO,
+  PROP_IMAGE_TO_OVERLAY
 };
 
 
@@ -110,6 +116,12 @@ struct _KmsFaceDetectPrivate {
   //Faces faces_detected; 
   //vector<Rect> *faces_detected;
   Faces *faces_detected;
+
+  GstStructure *image_to_overlay;
+  gdouble offsetXPercent, offsetYPercent, widthPercent, heightPercent;
+  IplImage *costume;
+  gboolean dir_created;
+  gchar *dir;
 };
 
 /* pad templates */
@@ -288,6 +300,201 @@ kms_face_detect_conf_images (KmsFaceDetect *face_detect,
   face_detect->priv->img_orig->imageData = (char *) info.data;
 }
 
+static gboolean
+is_valid_uri (const gchar * url)
+{
+  gboolean ret;
+  GRegex *regex;
+
+  regex = g_regex_new ("^(?:((?:https?):)\\/\\/)([^:\\/\\s]+)(?::(\\d*))?(?:\\/"
+      "([^\\s?#]+)?([?][^?#]*)?(#.*)?)?$", (GRegexCompileFlags) 0, (GRegexMatchFlags) 0, NULL);
+  ret = g_regex_match (regex, url, G_REGEX_MATCH_ANCHORED, NULL);
+  g_regex_unref (regex);
+
+  return ret;
+}
+
+static void
+load_from_url (gchar * file_name, gchar * url)
+{
+  SoupSession *session;
+  SoupMessage *msg;
+  FILE *dst;
+
+  session = soup_session_sync_new ();
+  msg = soup_message_new ("GET", url);
+  soup_session_send_message (session, msg);
+
+  dst = fopen (file_name, "w+");
+
+  if (dst == NULL) {
+    GST_ERROR ("It is not possible to create the file");
+    goto end;
+  }
+  fwrite (msg->response_body->data, 1, msg->response_body->length, dst);
+  fclose (dst);
+
+end:
+  g_object_unref (msg);
+  g_object_unref (session);
+}
+
+static void
+kms_face_detect_load_image_to_overlay (KmsFaceDetect * facedetect)
+{
+  gchar *url = NULL;
+  IplImage *costumeAux = NULL;
+  gboolean fields_ok = TRUE;
+
+  fields_ok = fields_ok
+      && gst_structure_get (facedetect->priv->image_to_overlay,
+      "offsetXPercent", G_TYPE_DOUBLE, &facedetect->priv->offsetXPercent,
+      NULL);
+  fields_ok = fields_ok
+      && gst_structure_get (facedetect->priv->image_to_overlay,
+      "offsetYPercent", G_TYPE_DOUBLE, &facedetect->priv->offsetYPercent,
+      NULL);
+  fields_ok = fields_ok
+      && gst_structure_get (facedetect->priv->image_to_overlay,
+      "widthPercent", G_TYPE_DOUBLE, &facedetect->priv->widthPercent, NULL);
+  fields_ok = fields_ok
+      && gst_structure_get (facedetect->priv->image_to_overlay,
+      "heightPercent", G_TYPE_DOUBLE, &facedetect->priv->heightPercent, NULL);
+  fields_ok = fields_ok
+      && gst_structure_get (facedetect->priv->image_to_overlay, "url",
+      G_TYPE_STRING, &url, NULL);
+
+  if (!fields_ok) {
+    GST_WARNING_OBJECT (facedetect, "Invalid image structure received");
+    goto end;
+  }
+
+  if (url == NULL) {
+    GST_DEBUG ("Unset the image overlay");
+    goto end;
+  }
+
+  if (!facedetect->priv->dir_created) {
+    gchar *d = g_strdup (TEMP_PATH);
+
+    facedetect->priv->dir = g_mkdtemp (d);
+    facedetect->priv->dir_created = TRUE;
+  }
+
+  costumeAux = cvLoadImage (url, CV_LOAD_IMAGE_UNCHANGED);
+
+  if (costumeAux != NULL) {
+    GST_DEBUG ("Image loaded from file");
+    goto end;
+  }
+
+  if (is_valid_uri (url)) {
+    gchar *file_name =
+        g_strconcat (facedetect->priv->dir, "/image.png", NULL);
+    load_from_url (file_name, url);
+    costumeAux = cvLoadImage (file_name, CV_LOAD_IMAGE_UNCHANGED);
+    g_remove (file_name);
+    g_free (file_name);
+  }
+
+  if (costumeAux == NULL) {
+    GST_ERROR_OBJECT (facedetect, "Overlay image not loaded");
+  } else {
+    GST_DEBUG_OBJECT (facedetect, "Image loaded from URL");
+  }
+
+end:
+
+  if (facedetect->priv->costume != NULL) {
+    cvReleaseImage (&facedetect->priv->costume);
+    facedetect->priv->costume = NULL;
+    facedetect->priv->show_faces = 0;
+  }
+
+  if (costumeAux != NULL) {
+    facedetect->priv->costume = costumeAux;
+    facedetect->priv->show_faces = 1;
+  }
+
+  g_free (url);
+}
+
+static void
+kms_face_detect_display_detections_overlay_img (KmsFaceDetect * facedetect,
+                                                int x, int y,
+                                                int width, int height)
+{
+  IplImage *costumeAux;
+  int w, h;
+  uchar *row, *image_row;
+
+  if ((facedetect->priv->heightPercent == 0) ||
+      (facedetect->priv->widthPercent == 0)) {
+    return;
+  }
+
+  x = x + (width * (facedetect->priv->offsetXPercent));
+  y = y + (height * (facedetect->priv->offsetYPercent));
+  height = height * (facedetect->priv->heightPercent);
+  width = width * (facedetect->priv->widthPercent);
+
+  costumeAux = cvCreateImage (cvSize (width, height),
+      facedetect->priv->costume->depth,
+      facedetect->priv->costume->nChannels);
+  cvResize (facedetect->priv->costume, costumeAux, CV_INTER_LINEAR);
+
+  row = (uchar *) costumeAux->imageData;
+  image_row = (uchar *) facedetect->priv->img_orig->imageData +
+      (y * facedetect->priv->img_orig->widthStep);
+
+  for (h = 0; h < costumeAux->height; h++) {
+
+    uchar *column = row;
+    uchar *image_column = image_row + (x * 3);
+
+    for (w = 0; w < costumeAux->width; w++) {
+      /* Check if point is inside overlay boundaries */
+      if (((w + x) < facedetect->priv->img_orig->width)
+          && ((w + x) >= 0)) {
+        if (((h + y) < facedetect->priv->img_orig->height)
+            && ((h + y) >= 0)) {
+
+          if (facedetect->priv->costume->nChannels == 1) {
+            *(image_column) = (uchar) (*(column));
+            *(image_column + 1) = (uchar) (*(column));
+            *(image_column + 2) = (uchar) (*(column));
+          } else if (facedetect->priv->costume->nChannels == 3) {
+            *(image_column) = (uchar) (*(column));
+            *(image_column + 1) = (uchar) (*(column + 1));
+            *(image_column + 2) = (uchar) (*(column + 2));
+          } else if (facedetect->priv->costume->nChannels == 4) {
+            double proportion =
+                ((double) *(uchar *) (column + 3)) / (double) 255;
+            double overlay = SRC_OVERLAY * proportion;
+            double original = 1 - overlay;
+
+            *image_column =
+                (uchar) ((*column * overlay) + (*image_column * original));
+            *(image_column + 1) =
+                (uchar) ((*(column + 1) * overlay) + (*(image_column +
+                        1) * original));
+            *(image_column + 2) =
+                (uchar) ((*(column + 2) * overlay) + (*(image_column +
+                        2) * original));
+          }
+        }
+      }
+
+      column += facedetect->priv->costume->nChannels;
+      image_column += facedetect->priv->img_orig->nChannels;
+    }
+
+    row += costumeAux->widthStep;
+    image_row += facedetect->priv->img_orig->widthStep;
+  }
+
+  cvReleaseImage (&costumeAux);
+}
 
 static void
 kms_face_detect_set_property (GObject *object, guint property_id,
@@ -350,6 +557,14 @@ kms_face_detect_set_property (GObject *object, guint property_id,
     
   case PROP_SERVER_EVENTS_MS:
     face_detect->priv->events_ms = g_value_get_int(value);
+    break;
+
+  case PROP_IMAGE_TO_OVERLAY:
+    if (face_detect->priv->image_to_overlay != NULL)
+      gst_structure_free (face_detect->priv->image_to_overlay);
+
+    face_detect->priv->image_to_overlay = (GstStructure*) g_value_dup_boxed (value);
+    kms_face_detect_load_image_to_overlay (face_detect);
     break;
      
   default:
@@ -417,6 +632,14 @@ kms_face_detect_get_property (GObject *object, guint property_id,
     
   case PROP_SERVER_EVENTS_MS:
     g_value_set_int(value,face_detect->priv->events_ms);
+    break;
+
+  case PROP_IMAGE_TO_OVERLAY:
+    if (face_detect->priv->image_to_overlay == NULL) {
+      face_detect->priv->image_to_overlay =
+          gst_structure_new_empty ("image_to_overlay");
+    }
+    g_value_set_boxed (value, face_detect->priv->image_to_overlay);
     break;
 
   default:
@@ -575,9 +798,25 @@ kms_face_detect_process_frame(KmsFaceDetect *face_detect,int width,int height,do
   if (GOP == face_detect->priv->num_frame )
     face_detect->priv->num_frame=0;
 
-  if (face_detect->priv->show_faces > 0)
-      faces->draw(face_detect->priv->img_orig,scale,face_detect->priv->num_iter);
+  if (face_detect->priv->show_faces > 0) {
+    if (face_detect->priv->costume != NULL) {
+      vector<Rect> faces_vector;
 
+      faces->get_faces (&faces_vector);
+
+      for (vector<Rect>::iterator it = faces_vector.begin() ; it != faces_vector.end(); ++it) {
+
+        kms_face_detect_display_detections_overlay_img (face_detect,
+                                                        ((*it).x)*face_detect->priv->scale,
+                                                        ((*it).y)*face_detect->priv->scale,
+                                                        ((*it).width)*face_detect->priv->scale,
+                                                        ((*it).height)*face_detect->priv->scale);
+      }
+    } else {
+      faces->draw(face_detect->priv->img_orig,scale,face_detect->priv->num_iter);
+    }
+
+  }
 
 
 }
@@ -643,6 +882,25 @@ kms_face_detect_dispose (GObject *object)
 {
 }
 
+static int
+delete_file (const char *fpath, const struct stat *sb, int typeflag,
+    struct FTW *ftwbuf)
+{
+  int rv = g_remove (fpath);
+
+  if (rv) {
+    GST_WARNING ("Error deleting file: %s. %s", fpath, strerror (errno));
+  }
+
+  return rv;
+}
+
+static void
+remove_recursive (const gchar * path)
+{
+  nftw (path, delete_file, 64, FTW_DEPTH | FTW_PHYS);
+}
+
 /*
  * The finalize function is called when the object is destroyed.
  */
@@ -660,6 +918,17 @@ kms_face_detect_finalize (GObject *object)
     cvClearSeq (face_detect->priv->face_seq);
 
   cvReleaseMemStorage (&face_detect->priv->cv_mem_storage);
+
+  if (face_detect->priv->costume != NULL)
+    cvReleaseImage (&face_detect->priv->costume);
+
+  if (face_detect->priv->image_to_overlay != NULL)
+    gst_structure_free (face_detect->priv->image_to_overlay);
+
+  if (face_detect->priv->dir_created) {
+    remove_recursive (face_detect->priv->dir);
+    g_free (face_detect->priv->dir);
+  }
 
   delete face_detect->priv->faces_detected;
   //g_mutex_clear(&face_detect->priv->mutex);
@@ -802,6 +1071,10 @@ g_object_class_install_property (gobject_class,   PROP_AREA_THRESHOLD,
 						    "the time, it takes to send events to the servers", 
 			          0,30000,FALSE, (GParamFlags) G_PARAM_READWRITE));
 
+ g_object_class_install_property (gobject_class, PROP_IMAGE_TO_OVERLAY,
+     g_param_spec_boxed ("image-to-overlay", "image to overlay",
+         "set the url of the image to overlay the faces",
+         GST_TYPE_STRUCTURE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   video_filter_class->transform_frame_ip =
     GST_DEBUG_FUNCPTR (kms_face_detect_transform_frame_ip);
