@@ -192,6 +192,34 @@ namespace kurento
 	g_object_set (G_OBJECT (nubo_mouth), EVENTS_MS , ms , NULL);
       }
 
+      void NuboMouthDetectorImpl::unsetOverlayedImage ()
+      {
+        GstStructure *imageSt;
+        imageSt = gst_structure_new ("image",
+                                     "offsetXPercent", G_TYPE_DOUBLE, 0.0,
+                                     "offsetYPercent", G_TYPE_DOUBLE, 0.0,
+                                     "widthPercent", G_TYPE_DOUBLE, 0.0,
+                                     "heightPercent", G_TYPE_DOUBLE, 0.0,
+                                     "url", G_TYPE_STRING, NULL,
+                                     NULL);
+        g_object_set (G_OBJECT (nubo_mouth), "image-to-overlay", imageSt, NULL);
+        gst_structure_free (imageSt);
+      }
+
+      void NuboMouthDetectorImpl::setOverlayedImage (const std::string &uri, float offsetXPercent, float offsetYPercent, float widthPercent, float heightPercent)
+      {
+        GstStructure *imageSt;
+        imageSt = gst_structure_new ("image",
+                                     "offsetXPercent", G_TYPE_DOUBLE, double (offsetXPercent),
+                                     "offsetYPercent", G_TYPE_DOUBLE, double (offsetYPercent),
+                                     "widthPercent", G_TYPE_DOUBLE, double (widthPercent),
+                                     "heightPercent", G_TYPE_DOUBLE, double (heightPercent),
+                                     "url", G_TYPE_STRING, uri.c_str(),
+                                     NULL);
+        g_object_set (G_OBJECT (nubo_mouth), "image-to-overlay", imageSt, NULL);
+        gst_structure_free (imageSt);
+      }
+
       MediaObjectImpl *
       NuboMouthDetectorImplFactory::createObject (const boost::property_tree::ptree &config, std::shared_ptr<MediaPipeline> mediaPipeline) const
       {
