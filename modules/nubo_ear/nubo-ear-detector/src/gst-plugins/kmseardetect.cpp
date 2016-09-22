@@ -17,6 +17,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <libsoup/soup.h>
+#include <ftw.h>
+
 #define PLUGIN_NAME "nuboeardetector"
 #define FACE_WIDTH 160
 #define EAR_WIDTH 320
@@ -45,6 +48,8 @@
 
 //number of pixels to widen the face area
 #define EXTRA_ROI	50
+#define TEMP_PATH "/tmp/XXXXXX"
+#define SRC_OVERLAY ((double)1)
 using namespace cv;
 
 #define KMS_EAR_DETECT_LOCK(ear_detect)					\
@@ -72,7 +77,8 @@ enum {
   PROP_WIDTH_TO_PROCESS,
   PROP_PROCESS_X_EVERY_4_FRAMES,
   PROP_ACTIVATE_SERVER_EVENTS,
-  PROP_SERVER_EVENTS_MS
+  PROP_SERVER_EVENTS_MS,
+  PROP_IMAGE_TO_OVERLAY
 };
 
 enum {
@@ -120,6 +126,11 @@ struct _KmsEarDetectPrivate {
   /*meta_data*/
   //0 (default) => it will not send meta data;
   //1 => it will send the bounding box of the ears as metadata 
+  GstStructure *image_to_overlay;
+  gdouble offsetXPercent, offsetYPercent, widthPercent, heightPercent;
+  IplImage *costume;
+  gboolean dir_created;
+  gchar *dir;
 };
 
 /* pad templates */
@@ -302,6 +313,202 @@ kms_ear_detect_conf_images (KmsEarDetect *ear_detect,
   ear_detect->priv->img_orig->imageData = (char *) info.data;
 }
 
+static gboolean
+is_valid_uri (const gchar * url)
+{
+  gboolean ret;
+  GRegex *regex;
+
+  regex = g_regex_new ("^(?:((?:https?):)\\/\\/)([^:\\/\\s]+)(?::(\\d*))?(?:\\/"
+      "([^\\s?#]+)?([?][^?#]*)?(#.*)?)?$", (GRegexCompileFlags) 0, (GRegexMatchFlags) 0, NULL);
+  ret = g_regex_match (regex, url, G_REGEX_MATCH_ANCHORED, NULL);
+  g_regex_unref (regex);
+
+  return ret;
+}
+
+static void
+load_from_url (gchar * file_name, gchar * url)
+{
+  SoupSession *session;
+  SoupMessage *msg;
+  FILE *dst;
+
+  session = soup_session_sync_new ();
+  msg = soup_message_new ("GET", url);
+  soup_session_send_message (session, msg);
+
+  dst = fopen (file_name, "w+");
+
+  if (dst == NULL) {
+    GST_ERROR ("It is not possible to create the file");
+    goto end;
+  }
+  fwrite (msg->response_body->data, 1, msg->response_body->length, dst);
+  fclose (dst);
+
+end:
+  g_object_unref (msg);
+  g_object_unref (session);
+}
+
+static void
+kms_ear_detect_load_image_to_overlay (KmsEarDetect * eardetect)
+{
+  gchar *url = NULL;
+  IplImage *costumeAux = NULL;
+  gboolean fields_ok = TRUE;
+
+  fields_ok = fields_ok
+      && gst_structure_get (eardetect->priv->image_to_overlay,
+      "offsetXPercent", G_TYPE_DOUBLE, &eardetect->priv->offsetXPercent,
+      NULL);
+  fields_ok = fields_ok
+      && gst_structure_get (eardetect->priv->image_to_overlay,
+      "offsetYPercent", G_TYPE_DOUBLE, &eardetect->priv->offsetYPercent,
+      NULL);
+  fields_ok = fields_ok
+      && gst_structure_get (eardetect->priv->image_to_overlay,
+      "widthPercent", G_TYPE_DOUBLE, &eardetect->priv->widthPercent, NULL);
+  fields_ok = fields_ok
+      && gst_structure_get (eardetect->priv->image_to_overlay,
+      "heightPercent", G_TYPE_DOUBLE, &eardetect->priv->heightPercent, NULL);
+  fields_ok = fields_ok
+      && gst_structure_get (eardetect->priv->image_to_overlay, "url",
+      G_TYPE_STRING, &url, NULL);
+
+  if (!fields_ok) {
+    GST_WARNING_OBJECT (eardetect, "Invalid image structure received");
+    goto end;
+  }
+
+  if (url == NULL) {
+    GST_DEBUG ("Unset the image overlay");
+    goto end;
+  }
+
+  if (!eardetect->priv->dir_created) {
+    gchar *d = g_strdup (TEMP_PATH);
+
+    eardetect->priv->dir = g_mkdtemp (d);
+    eardetect->priv->dir_created = TRUE;
+  }
+
+  costumeAux = cvLoadImage (url, CV_LOAD_IMAGE_UNCHANGED);
+
+  if (costumeAux != NULL) {
+    GST_DEBUG ("Image loaded from file");
+    goto end;
+  }
+
+  if (is_valid_uri (url)) {
+    gchar *file_name =
+        g_strconcat (eardetect->priv->dir, "/image.png", NULL);
+    load_from_url (file_name, url);
+    costumeAux = cvLoadImage (file_name, CV_LOAD_IMAGE_UNCHANGED);
+    g_remove (file_name);
+    g_free (file_name);
+  }
+
+  if (costumeAux == NULL) {
+    GST_ERROR_OBJECT (eardetect, "Overlay image not loaded");
+  } else {
+    GST_DEBUG_OBJECT (eardetect, "Image loaded from URL");
+  }
+
+end:
+
+  if (eardetect->priv->costume != NULL) {
+    cvReleaseImage (&eardetect->priv->costume);
+    eardetect->priv->costume = NULL;
+    eardetect->priv->view_ears = 0;
+  }
+
+  if (costumeAux != NULL) {
+    eardetect->priv->costume = costumeAux;
+    eardetect->priv->view_ears = 1;
+  }
+
+  g_free (url);
+}
+
+static void
+kms_ear_detect_display_detections_overlay_img (KmsEarDetect * eardetect,
+                                               int x, int y,
+                                               int width, int height)
+{
+  IplImage *costumeAux;
+  int w, h;
+  uchar *row, *image_row;
+
+  if ((eardetect->priv->heightPercent == 0) ||
+      (eardetect->priv->widthPercent == 0)) {
+    return;
+  }
+
+  x = x + (width * (eardetect->priv->offsetXPercent));
+  y = y + (height * (eardetect->priv->offsetYPercent));
+  height = height * (eardetect->priv->heightPercent);
+  width = width * (eardetect->priv->widthPercent);
+
+  costumeAux = cvCreateImage (cvSize (width, height),
+      eardetect->priv->costume->depth,
+      eardetect->priv->costume->nChannels);
+  cvResize (eardetect->priv->costume, costumeAux, CV_INTER_LINEAR);
+
+  row = (uchar *) costumeAux->imageData;
+  image_row = (uchar *) eardetect->priv->img_orig->imageData +
+      (y * eardetect->priv->img_orig->widthStep);
+
+  for (h = 0; h < costumeAux->height; h++) {
+
+    uchar *column = row;
+    uchar *image_column = image_row + (x * 3);
+
+    for (w = 0; w < costumeAux->width; w++) {
+      /* Check if point is inside overlay boundaries */
+      if (((w + x) < eardetect->priv->img_orig->width)
+          && ((w + x) >= 0)) {
+        if (((h + y) < eardetect->priv->img_orig->height)
+            && ((h + y) >= 0)) {
+
+          if (eardetect->priv->costume->nChannels == 1) {
+            *(image_column) = (uchar) (*(column));
+            *(image_column + 1) = (uchar) (*(column));
+            *(image_column + 2) = (uchar) (*(column));
+          } else if (eardetect->priv->costume->nChannels == 3) {
+            *(image_column) = (uchar) (*(column));
+            *(image_column + 1) = (uchar) (*(column + 1));
+            *(image_column + 2) = (uchar) (*(column + 2));
+          } else if (eardetect->priv->costume->nChannels == 4) {
+            double proportion =
+                ((double) *(uchar *) (column + 3)) / (double) 255;
+            double overlay = SRC_OVERLAY * proportion;
+            double original = 1 - overlay;
+
+            *image_column =
+                (uchar) ((*column * overlay) + (*image_column * original));
+            *(image_column + 1) =
+                (uchar) ((*(column + 1) * overlay) + (*(image_column +
+                        1) * original));
+            *(image_column + 2) =
+                (uchar) ((*(column + 2) * overlay) + (*(image_column +
+                        2) * original));
+          }
+        }
+      }
+
+      column += eardetect->priv->costume->nChannels;
+      image_column += eardetect->priv->img_orig->nChannels;
+    }
+
+    row += costumeAux->widthStep;
+    image_row += eardetect->priv->img_orig->widthStep;
+  }
+
+  cvReleaseImage (&costumeAux);
+}
+
 static void
 kms_ear_detect_set_property (GObject *object, guint property_id,
 			     const GValue *value, GParamSpec *pspec)
@@ -350,6 +557,14 @@ kms_ear_detect_set_property (GObject *object, guint property_id,
   case PROP_SERVER_EVENTS_MS:
     ear_detect->priv->events_ms = g_value_get_int(value);
     break;   
+
+  case PROP_IMAGE_TO_OVERLAY:
+    if (ear_detect->priv->image_to_overlay != NULL)
+      gst_structure_free (ear_detect->priv->image_to_overlay);
+
+    ear_detect->priv->image_to_overlay = (GstStructure*) g_value_dup_boxed (value);
+    kms_ear_detect_load_image_to_overlay (ear_detect);
+    break;
 
   default:
     G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);    
@@ -402,6 +617,14 @@ kms_ear_detect_get_property (GObject *object, guint property_id,
     
   case PROP_SERVER_EVENTS_MS:
     g_value_set_int(value,ear_detect->priv->events_ms);
+    break;
+
+  case PROP_IMAGE_TO_OVERLAY:
+    if (ear_detect->priv->image_to_overlay == NULL) {
+      ear_detect->priv->image_to_overlay =
+          gst_structure_new_empty ("image_to_overlay");
+    }
+    g_value_set_boxed (value, ear_detect->priv->image_to_overlay);
     break;
 
   default:
@@ -521,12 +744,16 @@ static void kms_ear_detect_print_ears(KmsEarDetect *ear_detect, int side)
   
   for ( vector<Rect>::iterator e = ears->begin(); e != ears->end();e++ , j++)
     {	
-      color = colors[j%8];     
-      cvRectangle( ear_detect->priv->img_orig, 
-		   cvPoint(e->x,e->y), 
-		   cvPoint(cvRound(e->x + e->width), 
-			   cvRound(e->y + e->height-1)),
-		   color, 3, 8, 0);	    
+      if (ear_detect->priv->costume == NULL) {
+        color = colors[j%8];
+        cvRectangle( ear_detect->priv->img_orig,
+         cvPoint(e->x,e->y),
+         cvPoint(cvRound(e->x + e->width),
+           cvRound(e->y + e->height-1)),
+         color, 3, 8, 0);
+      } else {
+        kms_ear_detect_display_detections_overlay_img (ear_detect, e->x, e->y, e->width, e->height);
+      }
     }
 
 }
@@ -646,6 +873,25 @@ kms_ear_detect_dispose (GObject *object)
 {
 }
 
+static int
+delete_file (const char *fpath, const struct stat *sb, int typeflag,
+    struct FTW *ftwbuf)
+{
+  int rv = g_remove (fpath);
+
+  if (rv) {
+    GST_WARNING ("Error deleting file: %s. %s", fpath, strerror (errno));
+  }
+
+  return rv;
+}
+
+static void
+remove_recursive (const gchar * path)
+{
+  nftw (path, delete_file, 64, FTW_DEPTH | FTW_PHYS);
+}
+
 /*
  * The finalize function is called when the object is destroyed.
  */
@@ -655,6 +901,18 @@ kms_ear_detect_finalize (GObject *object)
   KmsEarDetect *ear_detect = KMS_EAR_DETECT(object);
 
   cvReleaseImage (&ear_detect->priv->img_orig);
+
+  if (ear_detect->priv->costume != NULL)
+    cvReleaseImage (&ear_detect->priv->costume);
+
+  if (ear_detect->priv->image_to_overlay != NULL)
+    gst_structure_free (ear_detect->priv->image_to_overlay);
+
+  if (ear_detect->priv->dir_created) {
+    remove_recursive (ear_detect->priv->dir);
+    g_free (ear_detect->priv->dir);
+  }
+
   delete ear_detect->priv->faces;
   delete ear_detect->priv->ears;
   g_rec_mutex_clear(&ear_detect->priv->mutex);
@@ -771,6 +1029,11 @@ kms_ear_detect_class_init (KmsEarDetectClass *ear)
 				   g_param_spec_int ("events-ms",  "Activate Events",
 						     "the time, it takes to send events to the servers", 
 						     0,30000,FALSE, (GParamFlags) G_PARAM_READWRITE));
+
+  g_object_class_install_property (gobject_class, PROP_IMAGE_TO_OVERLAY,
+      g_param_spec_boxed ("image-to-overlay", "image to overlay",
+          "set the url of the image to overlay the faces",
+          GST_TYPE_STRUCTURE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   video_filter_class->transform_frame_ip =
     GST_DEBUG_FUNCPTR (kms_ear_detect_transform_frame_ip);
