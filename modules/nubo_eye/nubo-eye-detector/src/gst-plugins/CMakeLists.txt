@@ -5,6 +5,7 @@ include_directories(
   ${GSTREAMER_INCLUDE_DIRS}
   ${GSTREAMER_VIDEO_INCLUDE_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}
+  ${libsoup-2.4_INCLUDE_DIRS}
   ${OPENCV_INCLUDE_DIRS}
 )
 
@@ -21,6 +22,7 @@ target_link_libraries(nuboeyedetector
   ${GSTREAMER_LIBRARIES}
   ${GSTREAMER_VIDEO_LIBRARIES}
   ${OPENCV_LIBRARIES}
+  ${libsoup-2.4_LIBRARIES}
 )
 
 install(

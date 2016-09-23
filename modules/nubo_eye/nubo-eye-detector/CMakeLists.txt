@@ -29,10 +29,12 @@ if (${_len} GREATER 2)
 endif ()
 
 find_package(PkgConfig)
+include (GenericFind)
 
 set (GST_REQUIRED 1.3.3)
 set (GLIB_REQUIRED 2.38)
 set (OPENCV_REQUIRED 2.0.0)
+set (LIBSOUP_REQUIRED ^2.40)
 
 #gst-plugins dependencies
 pkg_check_modules(GSTREAMER REQUIRED gstreamer-1.5>=${GST_REQUIRED})
@@ -42,6 +44,7 @@ pkg_check_modules(GSTREAMER_CHECK REQUIRED gstreamer-check-1.5>=${GST_REQUIRED})
 pkg_check_modules(KMSCORE REQUIRED kmscore)
 pkg_check_modules(KMSGSTCOMMONS REQUIRED kmsgstcommons)
 pkg_check_modules(OPENCV REQUIRED opencv>=${OPENCV_REQUIRED})
+generic_find (LIBNAME libsoup-2.4 VERSION ${LIBSOUP_REQUIRED} REQUIRED)
 
 set (VERSION ${PROJECT_VERSION})
 set (PACKAGE ${PROJECT_NAME})
