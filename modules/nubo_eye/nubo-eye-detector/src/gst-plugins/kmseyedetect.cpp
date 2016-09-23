@@ -740,7 +740,7 @@ kms_eye_detect_process_frame(KmsEyeDetect *eye_detect,int width,int height,doubl
 
       for( vector<Rect>::iterator r = faces->begin(); r != faces->end(); r++, i++ )
 	{   
-	  vector<Rect> *result_aux;
+    vector<Rect> *result_aux = NULL;
 	  /*To detect eyes we need to work in the normal width 640 480*/
 	  r_aux.x = r->x*scale_f2e;
 	  r_aux.y = r->y*scale_f2e;
@@ -792,7 +792,9 @@ kms_eye_detect_process_frame(KmsEyeDetect *eye_detect,int width,int height,doubl
 
 	  if (eye_l.size() > 0)
 	    {
-	      if (result_aux->size()>0) result_aux->clear();
+        if (result_aux != NULL) {
+          if (result_aux->size()>0) result_aux->clear();
+        }
 	      
 	      __merge_eyes_current_frame(f_aux_l,res_r,eye_l,scale_o2e,true);	      
 	      result_aux= __merge_eyes_consecutives_frames(&eye_l,eyes_l,f_aux_l,scale_o2e,true);  
