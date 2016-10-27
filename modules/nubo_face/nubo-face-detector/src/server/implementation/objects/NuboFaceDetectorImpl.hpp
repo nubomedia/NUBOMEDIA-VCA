@@ -55,6 +55,8 @@ public:
   void trackThreshold (int threshold);
   void areaThreshold (int threshold);
   void activateServerEvents (int activate,int ms);
+  void unsetOverlayedImage ();
+  void setOverlayedImage (const std::string &uri, float offsetXPercent, float offsetYPercent, float widthPercent, float heightPercent);
 
   /* Next methods are automatically implemented by code generator */
   virtual bool connect (const std::string &eventType, std::shared_ptr<EventHandler> handler);

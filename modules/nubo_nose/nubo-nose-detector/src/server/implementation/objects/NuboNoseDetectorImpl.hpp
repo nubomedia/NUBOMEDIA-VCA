@@ -53,6 +53,8 @@ namespace kurento
 	void processXevery4Frames(int xper4);
 	void widthToProcess(int width);
 	void activateServerEvents (int activate,int ms);
+        void unsetOverlayedImage ();
+        void setOverlayedImage (const std::string &uri, float offsetXPercent, float offsetYPercent, float widthPercent, float heightPercent);
 
 	/* Next methods are automatically implemented by code generator */
 	sigc::signal<void, OnNose> signalOnNose;

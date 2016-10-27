@@ -6,6 +6,7 @@ include_directories(
   ${GSTREAMER_VIDEO_INCLUDE_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${OPENCV_INCLUDE_DIRS}
+  ${libsoup-2.4_INCLUDE_DIRS}
 )
 
 set(NUBO_NOSE_DETECTOR_SOURCES
@@ -21,6 +22,7 @@ target_link_libraries(nubonosedetector
   ${GSTREAMER_LIBRARIES}
   ${GSTREAMER_VIDEO_LIBRARIES}
   ${OPENCV_LIBRARIES}
+  ${libsoup-2.4_LIBRARIES}
 )
 
 install(

@@ -6,8 +6,8 @@ include_directories(
   ${GSTREAMER_VIDEO_INCLUDE_DIRS}
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${OPENCV_INCLUDE_DIRS}
+  ${libsoup-2.4_INCLUDE_DIRS}
   ${CMAKE_CURRENT_BINARY_DIR}
-
 )
 
 
@@ -30,6 +30,7 @@ target_link_libraries(nubofacedetector
   ${GSTREAMER_LIBRARIES}
   ${GSTREAMER_VIDEO_LIBRARIES}
   ${OPENCV_LIBRARIES}
+  ${libsoup-2.4_LIBRARIES}
 )
 
 install(

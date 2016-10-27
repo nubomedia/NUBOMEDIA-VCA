@@ -18,7 +18,8 @@
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <libsoup/soup.h>
+#include <ftw.h>
 
 #define PLUGIN_NAME "nubonosedetector"
 #define FACE_WIDTH 160
@@ -42,6 +43,9 @@
 #define DEFAULT_EUCLIDEAN_DIS 6
 #define SERVER_EVENTS 0
 #define EVENTS_MS 30001
+
+#define TEMP_PATH "/tmp/XXXXXX"
+#define SRC_OVERLAY ((double)1)
 
 using namespace cv;
 
@@ -72,7 +76,8 @@ enum {
   PROP_PROCESS_X_EVERY_4_FRAMES,
   PROP_ACTIVATE_SERVER_EVENTS,
   PROP_SERVER_EVENTS_MS,
-  PROP_SHOW_DEBUG_INFO
+  PROP_SHOW_DEBUG_INFO,
+  PROP_IMAGE_TO_OVERLAY
 };
 
 
@@ -117,6 +122,11 @@ struct _KmsNoseDetectPrivate {
   //1 => it will send the bounding box of the nose as metadata 
   /*num_frames_to_process*/
   // When we receive an event we need to process at least NUM_FRAMES_TO_PROCESS
+  GstStructure *image_to_overlay;
+  gdouble offsetXPercent, offsetYPercent, widthPercent, heightPercent;
+  IplImage *costume;
+  gboolean dir_created;
+  gchar *dir;
 };
 
 /* pad templates */
@@ -297,6 +307,202 @@ kms_nose_detect_conf_images (KmsNoseDetect *nose_detect,
   nose_detect->priv->img_orig->imageData = (char *) info.data;
 }
 
+static gboolean
+is_valid_uri (const gchar * url)
+{
+  gboolean ret;
+  GRegex *regex;
+
+  regex = g_regex_new ("^(?:((?:https?):)\\/\\/)([^:\\/\\s]+)(?::(\\d*))?(?:\\/"
+      "([^\\s?#]+)?([?][^?#]*)?(#.*)?)?$", (GRegexCompileFlags) 0, (GRegexMatchFlags) 0, NULL);
+  ret = g_regex_match (regex, url, G_REGEX_MATCH_ANCHORED, NULL);
+  g_regex_unref (regex);
+
+  return ret;
+}
+
+static void
+load_from_url (gchar * file_name, gchar * url)
+{
+  SoupSession *session;
+  SoupMessage *msg;
+  FILE *dst;
+
+  session = soup_session_sync_new ();
+  msg = soup_message_new ("GET", url);
+  soup_session_send_message (session, msg);
+
+  dst = fopen (file_name, "w+");
+
+  if (dst == NULL) {
+    GST_ERROR ("It is not possible to create the file");
+    goto end;
+  }
+  fwrite (msg->response_body->data, 1, msg->response_body->length, dst);
+  fclose (dst);
+
+end:
+  g_object_unref (msg);
+  g_object_unref (session);
+}
+
+static void
+kms_nose_detect_load_image_to_overlay (KmsNoseDetect * nosedetect)
+{
+  gchar *url = NULL;
+  IplImage *costumeAux = NULL;
+  gboolean fields_ok = TRUE;
+
+  fields_ok = fields_ok
+      && gst_structure_get (nosedetect->priv->image_to_overlay,
+      "offsetXPercent", G_TYPE_DOUBLE, &nosedetect->priv->offsetXPercent,
+      NULL);
+  fields_ok = fields_ok
+      && gst_structure_get (nosedetect->priv->image_to_overlay,
+      "offsetYPercent", G_TYPE_DOUBLE, &nosedetect->priv->offsetYPercent,
+      NULL);
+  fields_ok = fields_ok
+      && gst_structure_get (nosedetect->priv->image_to_overlay,
+      "widthPercent", G_TYPE_DOUBLE, &nosedetect->priv->widthPercent, NULL);
+  fields_ok = fields_ok
+      && gst_structure_get (nosedetect->priv->image_to_overlay,
+      "heightPercent", G_TYPE_DOUBLE, &nosedetect->priv->heightPercent, NULL);
+  fields_ok = fields_ok
+      && gst_structure_get (nosedetect->priv->image_to_overlay, "url",
+      G_TYPE_STRING, &url, NULL);
+
+  if (!fields_ok) {
+    GST_WARNING_OBJECT (nosedetect, "Invalid image structure received");
+    goto end;
+  }
+
+  if (url == NULL) {
+    GST_DEBUG ("Unset the image overlay");
+    goto end;
+  }
+
+  if (!nosedetect->priv->dir_created) {
+    gchar *d = g_strdup (TEMP_PATH);
+
+    nosedetect->priv->dir = g_mkdtemp (d);
+    nosedetect->priv->dir_created = TRUE;
+  }
+
+  costumeAux = cvLoadImage (url, CV_LOAD_IMAGE_UNCHANGED);
+
+  if (costumeAux != NULL) {
+    GST_DEBUG ("Image loaded from file");
+    goto end;
+  }
+
+  if (is_valid_uri (url)) {
+    gchar *file_name =
+        g_strconcat (nosedetect->priv->dir, "/image.png", NULL);
+    load_from_url (file_name, url);
+    costumeAux = cvLoadImage (file_name, CV_LOAD_IMAGE_UNCHANGED);
+    g_remove (file_name);
+    g_free (file_name);
+  }
+
+  if (costumeAux == NULL) {
+    GST_ERROR_OBJECT (nosedetect, "Overlay image not loaded");
+  } else {
+    GST_DEBUG_OBJECT (nosedetect, "Image loaded from URL");
+  }
+
+end:
+
+  if (nosedetect->priv->costume != NULL) {
+    cvReleaseImage (&nosedetect->priv->costume);
+    nosedetect->priv->costume = NULL;
+    nosedetect->priv->view_noses = 0;
+  }
+
+  if (costumeAux != NULL) {
+    nosedetect->priv->costume = costumeAux;
+    nosedetect->priv->view_noses = 1;
+  }
+
+  g_free (url);
+}
+
+static void
+kms_nose_detect_display_detections_overlay_img (KmsNoseDetect * nosedetect,
+                                                int x, int y,
+                                                int width, int height)
+{
+  IplImage *costumeAux;
+  int w, h;
+  uchar *row, *image_row;
+
+  if ((nosedetect->priv->heightPercent == 0) ||
+      (nosedetect->priv->widthPercent == 0)) {
+    return;
+  }
+
+  x = x + (width * (nosedetect->priv->offsetXPercent));
+  y = y + (height * (nosedetect->priv->offsetYPercent));
+  height = height * (nosedetect->priv->heightPercent);
+  width = width * (nosedetect->priv->widthPercent);
+
+  costumeAux = cvCreateImage (cvSize (width, height),
+      nosedetect->priv->costume->depth,
+      nosedetect->priv->costume->nChannels);
+  cvResize (nosedetect->priv->costume, costumeAux, CV_INTER_LINEAR);
+
+  row = (uchar *) costumeAux->imageData;
+  image_row = (uchar *) nosedetect->priv->img_orig->imageData +
+      (y * nosedetect->priv->img_orig->widthStep);
+
+  for (h = 0; h < costumeAux->height; h++) {
+
+    uchar *column = row;
+    uchar *image_column = image_row + (x * 3);
+
+    for (w = 0; w < costumeAux->width; w++) {
+      /* Check if point is inside overlay boundaries */
+      if (((w + x) < nosedetect->priv->img_orig->width)
+          && ((w + x) >= 0)) {
+        if (((h + y) < nosedetect->priv->img_orig->height)
+            && ((h + y) >= 0)) {
+
+          if (nosedetect->priv->costume->nChannels == 1) {
+            *(image_column) = (uchar) (*(column));
+            *(image_column + 1) = (uchar) (*(column));
+            *(image_column + 2) = (uchar) (*(column));
+          } else if (nosedetect->priv->costume->nChannels == 3) {
+            *(image_column) = (uchar) (*(column));
+            *(image_column + 1) = (uchar) (*(column + 1));
+            *(image_column + 2) = (uchar) (*(column + 2));
+          } else if (nosedetect->priv->costume->nChannels == 4) {
+            double proportion =
+                ((double) *(uchar *) (column + 3)) / (double) 255;
+            double overlay = SRC_OVERLAY * proportion;
+            double original = 1 - overlay;
+
+            *image_column =
+                (uchar) ((*column * overlay) + (*image_column * original));
+            *(image_column + 1) =
+                (uchar) ((*(column + 1) * overlay) + (*(image_column +
+                        1) * original));
+            *(image_column + 2) =
+                (uchar) ((*(column + 2) * overlay) + (*(image_column +
+                        2) * original));
+          }
+        }
+      }
+
+      column += nosedetect->priv->costume->nChannels;
+      image_column += nosedetect->priv->img_orig->nChannels;
+    }
+
+    row += costumeAux->widthStep;
+    image_row += nosedetect->priv->img_orig->widthStep;
+  }
+
+  cvReleaseImage (&costumeAux);
+}
+
 static void
 kms_nose_detect_set_property (GObject *object, guint property_id,
 			      const GValue *value, GParamSpec *pspec)
@@ -342,6 +548,14 @@ kms_nose_detect_set_property (GObject *object, guint property_id,
     
   case PROP_SERVER_EVENTS_MS:
     nose_detect->priv->events_ms = g_value_get_int(value);   
+    break;
+
+  case PROP_IMAGE_TO_OVERLAY:
+    if (nose_detect->priv->image_to_overlay != NULL)
+      gst_structure_free (nose_detect->priv->image_to_overlay);
+
+    nose_detect->priv->image_to_overlay = (GstStructure*) g_value_dup_boxed (value);
+    kms_nose_detect_load_image_to_overlay (nose_detect);
     break;
 
   default:
@@ -396,6 +610,14 @@ kms_nose_detect_get_property (GObject *object, guint property_id,
     
   case PROP_SERVER_EVENTS_MS:
     g_value_set_int(value,nose_detect->priv->events_ms);
+    break;
+
+  case PROP_IMAGE_TO_OVERLAY:
+    if (nose_detect->priv->image_to_overlay == NULL) {
+      nose_detect->priv->image_to_overlay =
+          gst_structure_new_empty ("image_to_overlay");
+    }
+    g_value_set_boxed (value, nose_detect->priv->image_to_overlay);
     break;
 
   default:
@@ -675,11 +897,15 @@ kms_nose_detect_process_frame(KmsNoseDetect *nose_detect,int width,int height,do
   if (1 == nose_detect->priv->view_noses  )
     for ( vector<Rect>::iterator m = noses->begin(); m != noses->end();m++,j++)	  
       {
-	color = colors[j%8];     
-	cvRectangle( nose_detect->priv->img_orig, cvPoint(m->x,m->y),
-		     cvPoint(cvRound(m->x + m->width), 
-			     cvRound(m->y+ m->height-1)),
-		     color, 3, 8, 0);	    
+        if (nose_detect->priv->costume == NULL) {
+          color = colors[j%8];
+          cvRectangle( nose_detect->priv->img_orig, cvPoint(m->x,m->y),
+                 cvPoint(cvRound(m->x + m->width),
+                   cvRound(m->y+ m->height-1)),
+                 color, 3, 8, 0);
+        } else {
+          kms_nose_detect_display_detections_overlay_img (nose_detect, m->x, m->y, m->width, m->height);
+        }
       }
   
 }
@@ -743,6 +969,25 @@ kms_nose_detect_dispose (GObject *object)
 {
 }
 
+static int
+delete_file (const char *fpath, const struct stat *sb, int typeflag,
+    struct FTW *ftwbuf)
+{
+  int rv = g_remove (fpath);
+
+  if (rv) {
+    GST_WARNING ("Error deleting file: %s. %s", fpath, strerror (errno));
+  }
+
+  return rv;
+}
+
+static void
+remove_recursive (const gchar * path)
+{
+  nftw (path, delete_file, 64, FTW_DEPTH | FTW_PHYS);
+}
+
 /*
  * The finalize function is called when the object is destroyed.
  */
@@ -752,6 +997,18 @@ kms_nose_detect_finalize (GObject *object)
   KmsNoseDetect *nose_detect = KMS_NOSE_DETECT(object);
 
   cvReleaseImage (&nose_detect->priv->img_orig);
+
+  if (nose_detect->priv->costume != NULL)
+    cvReleaseImage (&nose_detect->priv->costume);
+
+  if (nose_detect->priv->image_to_overlay != NULL)
+    gst_structure_free (nose_detect->priv->image_to_overlay);
+
+  if (nose_detect->priv->dir_created) {
+    remove_recursive (nose_detect->priv->dir);
+    g_free (nose_detect->priv->dir);
+  }
+
   delete nose_detect->priv->faces;
   delete nose_detect->priv->noses;
   g_rec_mutex_clear(&nose_detect->priv->mutex);
@@ -871,6 +1128,11 @@ g_object_class_install_property (gobject_class, PROP_WIDTH_TO_PROCCESS,
 				  g_param_spec_int ("events-ms",  "Activate Events",
 						    "the time, it takes to send events to the servers", 
 			          0,30000,FALSE, (GParamFlags) G_PARAM_READWRITE));
+
+ g_object_class_install_property (gobject_class, PROP_IMAGE_TO_OVERLAY,
+     g_param_spec_boxed ("image-to-overlay", "image to overlay",
+         "set the url of the image to overlay the noses",
+         GST_TYPE_STRUCTURE, (GParamFlags) (G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
   video_filter_class->transform_frame_ip =
     GST_DEBUG_FUNCPTR (kms_nose_detect_transform_frame_ip);
