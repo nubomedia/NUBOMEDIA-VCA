@@ -1,5 +1,5 @@
-nubo-mouth-detector (6.4.02~rc1) testing; urgency=medium
-	
+nubo-mouth-detector (6.6.0~rc1) testing; urgency=medium
+
   * Initial release.
 
  -- Maintainer name <maintainerMail@mail>  Tue, 18 Nov 2014 11:58:52 +0100

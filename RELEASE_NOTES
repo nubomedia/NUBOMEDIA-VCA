@@ -1,6 +1,14 @@
 
 -------------------------------------------------------Release notes below this line
+6.6.0
+=====
 
+  * Update filters to kurento version 6.6.0
+  * Update apps to kurento version 6.6.0
+  * Modification of the face filter in order to allow to set an image over detected faces
+  * Modification of the mouth filter in order to allow to set an image over detected mouths
+  * Modification of the nose filter in order to allow to set an image over detected noses
+  * Modification of the eye filter in order to allow to set an image over detected eyes
 
 6.4.0
 =====
