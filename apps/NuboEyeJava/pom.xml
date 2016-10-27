@@ -6,10 +6,10 @@
 	<artifactId>NuboEyeJava</artifactId>
 	<packaging>jar</packaging>
 
-	<parent>	  
+	<parent>
 	  <groupId>org.kurento</groupId>
 	  <artifactId>kurento-parent-pom</artifactId>
-	  <version>6.4.1-SNAPSHOT</version>
+	  <version>6.6.0</version>
 	</parent>
 
 	<name>NuboEyeJava Filter</name>
@@ -25,13 +25,13 @@
 
 	<organization>
 		<name>Visual Tools</name>
-		<url>http://www.visual-tools.com</url>		
+		<url>http://www.visual-tools.com</url>
 	</organization>
 
 	<scm>
 		<url>https://github.com/VictorHidalgoVT/NUBOMEDIA-VCA</url>
 		<connection>scm:git:https://github.com/VictorHidalgoVT/NUBOMEDIA-VCA</connection>
-		<developerConnection>scm:git://git@github.com:VictorHidalgoVT/NUBOMEDIA-VCA</developerConnection>		
+		<developerConnection>scm:git://git@github.com:VictorHidalgoVT/NUBOMEDIA-VCA</developerConnection>
 		<tag>master</tag>
 	</scm>
 
@@ -44,7 +44,7 @@
 		</developer>
 	</developers>
 
-	<properties>		
+	<properties>
 	  <!-- Nubomedia -->
 	  <nubomedia-media-client.version>1.0.1</nubomedia-media-client.version>
 	  <!-- Main class -->
@@ -60,7 +60,7 @@
 			<groupId>org.springframework</groupId>
 			<artifactId>spring-websocket</artifactId>
 		</dependency>
-		
+
 		<!-- Kurento -->
 		<dependency>
 			<groupId>org.kurento</groupId>
@@ -70,13 +70,13 @@
 			<groupId>org.kurento</groupId>
 			<artifactId>kurento-utils-js</artifactId>
 		</dependency>
-		
+
 		<!-- Nubomedia -->
 
 		<dependency>
-		  <groupId>com.visual-tools.nubomedia</groupId>
+		  <groupId>org.kurento.module</groupId>
 		  <artifactId>nuboeyedetector</artifactId>
-		  <version>6.4.02</version>
+		  <version>6.6.0</version>
 		</dependency>
 
 		<dependency>
