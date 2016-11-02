@@ -12,3 +12,4 @@ log.xml
 .externalToolBuilders
 *.pyc
 *bower_components/
+output/
