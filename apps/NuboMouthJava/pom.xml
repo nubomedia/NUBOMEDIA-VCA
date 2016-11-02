@@ -7,9 +7,9 @@
 	<packaging>jar</packaging>
 
 	<parent>
-	  <groupId>org.kurento</groupId>
-	  <artifactId>kurento-parent-pom</artifactId>
-	  <version>6.6.0</version>
+		<groupId>org.kurento</groupId>
+		<artifactId>kurento-parent-pom</artifactId>
+		<version>6.6.0</version>
 	</parent>
 
 
@@ -46,11 +46,11 @@
 	</developers>
 
 	<properties>
-	  <!-- Nubomedia -->
-	  <nubomedia-media-client.version>1.0.1</nubomedia-media-client.version>
-	  <!-- Main class -->
-	  <!-- <demo.port>8103</demo.port> -->
-	  <start-class>com.visual_tools.nubomedia.nuboMouthJava.NuboMouthJavaApp</start-class>
+		<!-- Nubomedia -->
+		<nubomedia-media-client.version>1.0.1</nubomedia-media-client.version>
+		<!-- Main class -->
+		<!-- <demo.port>8103</demo.port> -->
+		<start-class>com.visual_tools.nubomedia.nuboMouthJava.NuboMouthJavaApp</start-class>
 
 	</properties>
 
@@ -77,15 +77,15 @@
 
 		<!-- Nubomedia -->
 		<dependency>
-		  <groupId>de.fhg.fokus.nubomedia</groupId>
-		  <artifactId>nubomedia-media-client</artifactId>
-		  <version>${nubomedia-media-client.version}</version>
+			<groupId>de.fhg.fokus.nubomedia</groupId>
+			<artifactId>nubomedia-media-client</artifactId>
+			<version>${nubomedia-media-client.version}</version>
 		</dependency>
 
 		<dependency>
-		  <groupId>org.kurento.module</groupId>
-		  <artifactId>nubomouthdetector</artifactId>
-		  <version>6.6.0</version>
+			<groupId>org.kurento.module</groupId>
+			<artifactId>nubomouthdetector</artifactId>
+			<version>6.6.0</version>
 		</dependency>
 
 	</dependencies>
@@ -160,16 +160,28 @@
 			</resource>
 		</resources>
 	</build>
+
 	<repositories>
 		<repository>
 			<id>kurento-snapshots</id>
 			<name>Kurento Snapshot Repository</name>
-			<url>http://maven.kurento.org/archiva/repository/snapshots/</url>
+			<url>http://maven.kurento.org/snapshots/</url>
 			<releases>
 				<enabled>false</enabled>
 			</releases>
 			<snapshots>
 				<enabled>true</enabled>
+			</snapshots>
+		</repository>
+		<repository>
+			<id>kurento-releases</id>
+			<name>Kurento Repository</name>
+			<url>http://maven.kurento.org/releases</url>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
+			<snapshots>
+				<enabled>false</enabled>
 			</snapshots>
 		</repository>
 	</repositories>

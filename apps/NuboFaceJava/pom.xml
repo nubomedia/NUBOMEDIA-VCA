@@ -165,12 +165,23 @@
 		<repository>
 			<id>kurento-snapshots</id>
 			<name>Kurento Snapshot Repository</name>
-			<url>http://maven.kurento.org/archiva/repository/snapshots/</url>
+			<url>http://maven.kurento.org/snapshots/</url>
 			<releases>
 				<enabled>false</enabled>
 			</releases>
 			<snapshots>
 				<enabled>true</enabled>
+			</snapshots>
+		</repository>
+		<repository>
+			<id>kurento-releases</id>
+			<name>Kurento Repository</name>
+			<url>http://maven.kurento.org/releases</url>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
+			<snapshots>
+				<enabled>false</enabled>
 			</snapshots>
 		</repository>
 	</repositories>
