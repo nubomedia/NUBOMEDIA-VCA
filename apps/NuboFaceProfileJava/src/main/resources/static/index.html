@@ -1,222 +1,226 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="cache-control" content="no-cache">
-    <meta http-equiv="pragma" content="no-cache">
-    <meta http-equiv="expires" content="0">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="shortcut icon" href="img/kurento.png" type="image/png" />
+<head>
+<meta charset="utf-8">
+<meta http-equiv="cache-control" content="no-cache">
+<meta http-equiv="pragma" content="no-cache">
+<meta http-equiv="expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<link rel="shortcut icon" href="img/kurento.png" type="image/png" />
 
-    <link rel="stylesheet"
-          href="bower_components/bootstrap/dist/css/bootstrap.min.css">
-    <link rel="stylesheet"
-          href="bower_components/ekko-lightbox/dist/ekko-lightbox.min.css">
-    <link rel="stylesheet" href="bower_components/demo-console/index.css">
-    <link rel="stylesheet" href="css/kurento.css">
+<link rel="stylesheet"
+	href="webjars/bootstrap/dist/css/bootstrap.min.css">
+<link rel="stylesheet"
+	href="webjars/ekko-lightbox/dist/ekko-lightbox.min.css">
+<link rel="stylesheet" href="webjars/demo-console/index.css">
+<link rel="stylesheet" href="css/kurento.css">
 
-    <script src="bower_components/jquery/dist/jquery.min.js"></script>
-    <script src="bower_components/bootstrap/dist/js/bootstrap.min.js"></script>
-    <script src="bower_components/ekko-lightbox/dist/ekko-lightbox.min.js"></script>
-    <script src="bower_components/adapter.js/adapter.js"></script>
-    <script src="bower_components/demo-console/index.js"></script>
+<script src="webjars/jquery/dist/jquery.min.js"></script>
+<script src="webjars/bootstrap/dist/js/bootstrap.min.js"></script>
+<script src="webjars/ekko-lightbox/dist/ekko-lightbox.min.js"></script>
+<script src="webjars/adapter.js/adapter.js"></script>
+<script src="webjars/demo-console/index.js"></script>
 
+<script src="js/kurento-utils.js"></script>
+<script src="js/index.js"></script>
 
-    <script src="js/kurento-utils.js"></script>
-    <script src="js/index.js"></script>
+<title>NuboMedia Face Profile Filter example</title>
+</head>
 
-    <title>NuboMedia Face Profile Filter example</title>
-  </head>
+<body>
+	<header>
+		<div class="navbar navbar-inverse navbar-fixed-top">
+			<div class="container">
+				<div class="navbar-header">
+					<button type="button" class="navbar-toggle" data-toggle="collapse"
+						data-target=".navbar-collapse"></button>
+					<a class="navbar-brand" href=".">Kurento Tutorial</a>
+				</div>
+				<div class="collapse navbar-collapse"
+					id="bs-example-navbar-collapse-1">
+					<ul class="nav navbar-nav navbar-right">
+						<li><a
+							href="https://github.com/Kurento/kurento-tutorial-java/tree/master/kurento-magic-mirror"><span
+								class="glyphicon glyphicon-file"></span> Source Code</a></li>
+					</ul>
+				</div>
+			</div>
+		</div>
 
-  <body>
-    <header>
-      <div class="navbar navbar-inverse navbar-fixed-top">
+	</header>
+
 	<div class="container">
-	  <div class="navbar-header">
-	    <button type="button" class="navbar-toggle" data-toggle="collapse"
-		    data-target=".navbar-collapse"></button>
-	    <a class="navbar-brand" href=".">Kurento Tutorial</a>
-	  </div>
-	  <div class="collapse navbar-collapse"
-	       id="bs-example-navbar-collapse-1">
-	    <ul class="nav navbar-nav navbar-right">
-	      <li><a
-		     href="https://github.com/Kurento/kurento-tutorial-java/tree/master/kurento-magic-mirror"><span
-														 class="glyphicon glyphicon-file"></span> Source Code</a></li>
-	    </ul>
-	  </div>
-	</div>
-      </div>
+		<div class="page-header">
+			<div class="row">
+				<h1>NuboMedia Face, Mouth, Nose and eye Example</h1>
+				<p>
+					This application shows a <i>WebRtcEndpoint</i> connected to itself
+					(loopback) with a <i>Face Mouth and nose</i> filters in the middle.
+					To run this demo follow these steps:
+				</p>
+				<ol>
+					<li>Open this page with a browser compliant with WebRTC
+						(Chrome, Firefox).</li>
+					<li>Click on <i>Start</i> button.
+					<li>Grant the access to the camera and microphone. After the
+						SDP negotiation the loopback should start.
+					<li>Click on <i>Stop</i> to finish the communication.
+					</li>
+				</ol>
+			</div>
+			<div class="row">
+				<div style="margin-left: 130px">
+					<img src="./img/FaceProfile.jpg" alt="Demo_pipeline" height="150px">
+				</div>
+			</div>
+		</div>
+		<!-- </div> -->
+		<div class="page-header">
+			<div class="row" style="margin-left: 150px">
+				<h4 style="margin-left: 320px">Configuration</h4>
+				<table style="margin: 20px 10px 20px 10px">
+					<tr>
+						<td align="left" width="65px"><span>Face Res.</span></td>
+						<td align="left" width="120px"><select id="face_resolution"
+							style="width: 80px" onchange="send_param('face_res',this.value)">
+								<option value="640">640x480</option>
+								<option value="320">320x240</option>
+								<option selected="selected" value="160">160x120</option>
+								<option value="80">80x60</option>
+						</select></td>
 
-    </header>
+						<td align="left" width="75px"><span>Mouth Res.</span></td>
+						<td align="left" width="120px"><select id="mouth_resolution"
+							style="width: 80px" onchange="send_param('mouth_res',this.value)">
+								<option value="640">640x480</option>
+								<option selected="selected" value="320">320x240</option>
+								<option value="160">160x120</option>
+								<option value="80">80x60</option>
+						</select></td>
 
-    <div class="container">    
-      <div class="page-header">
-	<div class="row">
-	  <h1>NuboMedia Face, Mouth, Nose and eye Example </h1>
-	  <p>
-	    This application shows a <i>WebRtcEndpoint</i> connected to itself
-	    (loopback) with a <i>Face Mouth and nose</i> filters in the middle. To run this demo follow these steps:
-	  </p>
-	  <ol>
-	    <li>Open this page with a browser compliant with WebRTC
-	      (Chrome, Firefox).</li>
-	    <li>Click on <i>Start</i> button.
-	    <li>Grant the access to the camera and microphone. After the
-	      SDP negotiation the loopback should start.
-	    <li>Click on <i>Stop</i> to finish the communication.
-	    </li>
-	  </ol>
-	</div>
-	<div class="row" >
-	  <div   style="margin-left:130px" >
-	    <img src="./img/FaceProfile.jpg" alt="Demo_pipeline" height="150px">	  
-	  </div>
-	</div>		
-      </div>
-      <!-- </div> -->		      
-      <div class="page-header">
-	<div class="row" style="margin-left:150px"  >
-	  <h4 style="margin-left:320px">Configuration</h4>
-	  <table  style="margin: 20px 10px 20px 10px">
-	    <tr>
-	      <td align="left" width="65px"> <span >Face Res.</span> </td>
-	      <td align="left" width="120px">
-		<select id="face_resolution" style="width:80px" onchange="send_param('face_res',this.value)">
-		  <option value="640"> 640x480 </option>
-		  <option value="320"> 320x240 </option>
-		  <option selected="selected" value="160"> 160x120 </option>
-		  <option value="80"> 80x60 </option>
-		</select>
-	      </td>
+						<td align="left" width="70px"><span>Nose Res.</span></td>
+						<td align="left" width="120px"><select id="nose_resolution"
+							style="width: 80px" onchange="send_param('nose_res',this.value)">
+								<option value="640">640x480</option>
+								<option selected="selected" value="320">320x240</option>
+								<option value="160">160x120</option>
+								<option value="80">80x60</option>
+						</select></td>
 
-	      <td align="left" width="75px"> <span >Mouth Res.</span> </td>
-	      <td align="left" width="120px">
-		<select id="mouth_resolution" style="width:80px" onchange="send_param('mouth_res',this.value)">
-		  <option value="640"> 640x480 </option>
-		  <option selected="selected" value="320"> 320x240 </option>
-		  <option value="160"> 160x120 </option>
-		  <option value="80"> 80x60 </option>
-		</select>
-	      </td>
-	      
-	      <td align="left" width="70px"> <span >Nose Res.</span> </td>
-	      <td align="left" width="120px">
-		<select id="nose_resolution" style="width:80px" onchange="send_param('nose_res',this.value)">
-		  <option value="640"> 640x480 </option>
-		  <option selected="selected" value="320"> 320x240 </option>
-		  <option value="160"> 160x120  </option>
-		  <option value="80"> 80x60 </option>
-		</select>
-	      </td>
-	      
-	      <td align="left" width="60px"> <span >Eye Res.</span> </td>
-	      <td align="left" width="120px">
-		<select id="nose_resolution" style="width:80px" onchange="send_param('eye_res',this.value)">
-		  <option value="640"> 640x480 </option>
-		  <option selected="selected" value="320"> 320x240 </option>
-		  <option value="160"> 160x120 </option>
-		  <option value="80"> 80x60 </option>
-		</select>
-	      </td>
-	    </tr>
-	    <tr><td height="20px"></td></tr>
-	    <tr>
-	      <td align="left" width="65px"> </td>
-	      <td align="left" width="120px"> </td>
-	      <td align="left" width="82px"> <span >Scale Factor</span> </td>
-	      <td align="left" width="120px">
-		<select id="scale_factor" style="width:65px" onchange="send_param('scale_factor',this.value)">
-		  <option value="5"> 5% </option>
-		  <option value="10"> 10% </option>
-		  <option value="15"> 15% </option>
-		  <option value="20"> 20% </option>
-		  <option selected="selected" value="25"> 25% </option>
-		  <option value="30"> 30% </option>
-		  <option value="35"> 35% </option>
-		  <option value="40"> 40% </option>		  
-		  <option value="45"> 45% </option>
-		  <option value="50"> 50% </option>				  
-		</select>
-	      </td>	      
-	      <td align="left" width="65px"> <span >Fps</span> </td>
-	      <td align="left" width="120px">
-		<select id="select_fps" style="width:65px" onchange="send_param('fps',this.value)">
-		  <option value="1"> 8 fps </option>
-		  <option value="2"> 12 fps </option>
-		  <option value="3"> 18 fps </option>
-		  <option selected="selected" value="4"> 24 fps </option>
-		</select>
-	      </td>
-	    </tr>
-	  </table>
-	       
-	</div>
-	<div class="row" style="margin-left:195px"  >
-	  <input id="show_faces" type="checkbox"  required name="terms" onchange="show_faces()"> Show detected Faces &nbsp;
-	  <input id="show_mouths" type="checkbox"  required name="terms" onchange="show_mouths()"> Show detected Mouths &nbsp;
-	  <input id="show_noses" type="checkbox"  required name="terms" onchange="show_noses()"> Show detected Noses &nbsp;
-	  <input id="show_eyes" type="checkbox"  required name="terms" onchange="show_eyes()"> Show detected Eyes &nbsp;
-	  <br/> <br/>
-	</div>
-	<table><tr><td height="20px"></td></tr>
-	</table>
-      </div>
-      <div class="row" style="margin-left:400px"  >
-	<a id="start" href="#" class="btn btn-success"
-	   onclick="start(); return false;">
-	  <span class="glyphicon glyphicon-play"></span> Start</a>
-	&nbsp &nbsp
-	<a
-	   id="stop" href="#" class="btn btn-danger"
-	   onclick="stop(); return false;">
-	  <span class="glyphicon glyphicon-stop"></span> Stop</a>
-      </div >
-      
-      <div class="row" align="center">
-	<div class="col-md-5">
-	  <h3>Local stream</h3>
-	  <video id="videoInput" autoplay width="480px" height="360px"
-		 poster="img/webrtc.png"></video>
-	</div>
-	<div class="col-md-5">
-	  <h3>Remote stream</h3>
-	  <video id="videoOutput" autoplay width="480px" height="360px"
-		 poster="img/webrtc.png"></video>
-	</div>
-      </div>
+						<td align="left" width="60px"><span>Eye Res.</span></td>
+						<td align="left" width="120px"><select id="nose_resolution"
+							style="width: 80px" onchange="send_param('eye_res',this.value)">
+								<option value="640">640x480</option>
+								<option selected="selected" value="320">320x240</option>
+								<option value="160">160x120</option>
+								<option value="80">80x60</option>
+						</select></td>
+					</tr>
+					<tr>
+						<td height="20px"></td>
+					</tr>
+					<tr>
+						<td align="left" width="65px"></td>
+						<td align="left" width="120px"></td>
+						<td align="left" width="82px"><span>Scale Factor</span></td>
+						<td align="left" width="120px"><select id="scale_factor"
+							style="width: 65px"
+							onchange="send_param('scale_factor',this.value)">
+								<option value="5">5%</option>
+								<option value="10">10%</option>
+								<option value="15">15%</option>
+								<option value="20">20%</option>
+								<option selected="selected" value="25">25%</option>
+								<option value="30">30%</option>
+								<option value="35">35%</option>
+								<option value="40">40%</option>
+								<option value="45">45%</option>
+								<option value="50">50%</option>
+						</select></td>
+						<td align="left" width="65px"><span>Fps</span></td>
+						<td align="left" width="120px"><select id="select_fps"
+							style="width: 65px" onchange="send_param('fps',this.value)">
+								<option value="1">8 fps</option>
+								<option value="2">12 fps</option>
+								<option value="3">18 fps</option>
+								<option selected="selected" value="4">24 fps</option>
+						</select></td>
+					</tr>
+				</table>
 
-      <div class="row" align="left">
-	&nbsp; &nbsp; <input id="videoE2Elatency" type="checkbox"  required name="terms" onchange="show_latency()"><span id="testVideoE2Elatency">  VideoE2ELatency (ms): </span>  
-      </div>
+			</div>
+			<div class="row" style="margin-left: 195px">
+				<input id="show_faces" type="checkbox" required name="terms"
+					onchange="show_faces()"> Show detected Faces &nbsp; <input
+					id="show_mouths" type="checkbox" required name="terms"
+					onchange="show_mouths()"> Show detected Mouths &nbsp; <input
+					id="show_noses" type="checkbox" required name="terms"
+					onchange="show_noses()"> Show detected Noses &nbsp; <input
+					id="show_eyes" type="checkbox" required name="terms"
+					onchange="show_eyes()"> Show detected Eyes &nbsp; <br /> <br />
+			</div>
+			<table>
+				<tr>
+					<td height="20px"></td>
+				</tr>
+			</table>
+		</div>
+		<div class="row" style="margin-left: 400px">
+			<a id="start" href="#" class="btn btn-success"
+				onclick="start(); return false;"> <span
+				class="glyphicon glyphicon-play"></span> Start
+			</a> &nbsp &nbsp <a id="stop" href="#" class="btn btn-danger"
+				onclick="stop(); return false;"> <span
+				class="glyphicon glyphicon-stop"></span> Stop
+			</a>
+		</div>
+
+		<div class="row" align="center">
+			<div class="col-md-5">
+				<h3>Local stream</h3>
+				<video id="videoInput" autoplay width="480px" height="360px"
+					poster="img/webrtc.png"></video>
+			</div>
+			<div class="col-md-5">
+				<h3>Remote stream</h3>
+				<video id="videoOutput" autoplay width="480px" height="360px"
+					poster="img/webrtc.png"></video>
+			</div>
+		</div>
+
+		<div class="row" align="left">
+			&nbsp; &nbsp; <input id="videoE2Elatency" type="checkbox" required
+				name="terms" onchange="show_latency()"><span
+				id="testVideoE2Elatency"> VideoE2ELatency (ms): </span>
+		</div>
 
 
-    <footer>
-      <div class="foot-fixed-bottom">
-	<div class="container text-center">
-	  <hr />
-	  <div class="row">&copy; 2014 Kurento</div>
-	  <div class="row">
-	    <div class="col-md-3">
-	      <a href="http://www.nubomedia.eu"><img src="img/nuboMedia.png"
-						     alt="NuboMedia" height="50px" /></a>
-	    </div>
-	    <div class="col-md-3">
-	      <a href="http://www.kurento.org"><img src="img/kurento.png"
-						    alt="Kurento" height="50px" /></a>
-	    </div>
-   	    <div class="col-md-3">
-	      <a href="http://cordis.europa.eu/fp7/">
-		<img src="img/fp7.jpg" alt="Seventh framework programme" height="50px" /></a>
-	    </div>
-	    <div class="col-md-3">
-	      <a href="http://www.visual-tools.com">
-		<img src="img/vt.jpg" alt="VT" height="25px" /></a>
-	    </div>
-	  </div>
-	</div>
-      </div>
-    </footer>
-
-  </body>
+		<footer>
+			<div class="foot-fixed-bottom">
+				<div class="container text-center">
+					<hr />
+					<div class="row">&copy; 2014 Kurento</div>
+					<div class="row">
+						<div class="col-md-3">
+							<a href="http://www.nubomedia.eu"><img
+								src="img/nuboMedia.png" alt="NuboMedia" height="50px" /></a>
+						</div>
+						<div class="col-md-3">
+							<a href="http://www.kurento.org"><img src="img/kurento.png"
+								alt="Kurento" height="50px" /></a>
+						</div>
+						<div class="col-md-3">
+							<a href="http://cordis.europa.eu/fp7/"> <img
+								src="img/fp7.jpg" alt="Seventh framework programme"
+								height="50px" /></a>
+						</div>
+						<div class="col-md-3">
+							<a href="http://www.visual-tools.com"> <img src="img/vt.jpg"
+								alt="VT" height="25px" /></a>
+						</div>
+					</div>
+				</div>
+			</div>
+		</footer>
+</body>
 </html>
