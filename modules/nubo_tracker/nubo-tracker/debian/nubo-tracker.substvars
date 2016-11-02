@@ -1,3 +1,0 @@
-misc:Pre-Depends=multiarch-support
-shlibs:Depends=kms-core-6.0, kms-jsonrpc-1.0, kmsjsoncpp, libc6 (>= 2.14), libgcc1 (>= 1:4.1.1), libglib2.0-0 (>= 2.37.3), libgstreamer-plugins-base1.5-0 (>= 1.7.1.1~20160224182824.59.ge0bd9ca.trusty), libgstreamer1.5-0 (>= 1.7.1.1~20160225111550.199.gba35ee7.trusty), libopencv-core2.4, libopencv-imgproc2.4, libopencv-video2.4, libsigc++-2.0-0c2a (>= 2.0.2), libstdc++6 (>= 4.6), nubo-tracker
-misc:Depends=
