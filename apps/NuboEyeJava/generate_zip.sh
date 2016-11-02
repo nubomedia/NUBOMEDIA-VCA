@@ -1,7 +1,7 @@
 #!/bin/sh
 
 APP_NAME=NuboEyeJava
-VERSION=6.4.0
+VERSION=6.6.0
 DIR_INSTALL=apps_install
 MVN_CENTRAL=mvn_central
 
