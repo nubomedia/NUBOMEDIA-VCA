@@ -22,3 +22,4 @@
     /mmmh :ms :moym. hm.   /mo :my:::+mh sm+    /my /o.-o./o`/o`.oo.....` :o-    +o- oo  /o+//+o:
      `odh :ms  -mmm. +my::/dm- :my///omm`.dm+::+mm- /o. +oo: /o` :o/----. :o/---/o/  oo -o:..../o.
         - .+:   .++`  ./+++:`  .++++++:`  `:+oo+:`  .-` `--  .-`  `-----. .------`   -- --     `--
+                                                                           version ${project.version}
