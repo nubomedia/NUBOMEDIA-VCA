@@ -86,8 +86,8 @@ rm -rf $MOUTH_MODULE/debian/$MOUTH_NAME*debhelper
 rm -rf $MOUTH_MODULE/debian/tmp/
 
 #Face
-#rm $FACE_PACK/*deb
-#rm $FACE_PACK/$FACE_NAME_*
+rm $FACE_PACK/*deb
+rm $FACE_PACK/$FACE_NAME_*
 rm -rf $FACE_MODULE/build/
 rm -rf $FACE_MODULE/obj-x86_64-linux-gnu/
 rm -rf $FACE_MODULE/debian/$FACE_NAME/
