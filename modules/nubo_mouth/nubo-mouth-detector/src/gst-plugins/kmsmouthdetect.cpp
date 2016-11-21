@@ -14,6 +14,7 @@
 #include <commons/kms-core-marshal.h>
 #include <libsoup/soup.h>
 #include <ftw.h>
+#include <memory>
 
 #define PLUGIN_NAME "nubomouthdetector"
 #define FACE_WIDTH 160
@@ -116,6 +117,9 @@ struct _KmsMouthDetectPrivate {
   IplImage *costume;
   gboolean dir_created;
   gchar *dir;
+
+  std::shared_ptr <CascadeClassifier> fcascade;
+  std::shared_ptr <CascadeClassifier> mcascade;
 };
 
 /* pad templates */
@@ -136,9 +140,6 @@ G_DEFINE_TYPE_WITH_CODE (KmsMouthDetect, kms_mouth_detect,
 
 #define MULTI_SCALE_FACTOR(scale) (1 + scale*1.0/100)
 
-static CascadeClassifier fcascade;
-static CascadeClassifier mcascade;
-
 template<typename T>
 string toString(const T& value)
 {
@@ -148,15 +149,18 @@ string toString(const T& value)
 }
 
 static int
-kms_mouth_detect_init_cascade()
+kms_mouth_detect_init_cascade(KmsMouthDetect *mouth_detect)
 {
-  if (!fcascade.load(FACE_CONF_FILE) )
+  mouth_detect->priv->fcascade = std::make_shared<CascadeClassifier>();
+  mouth_detect->priv->mcascade = std::make_shared<CascadeClassifier>();
+
+  if (!mouth_detect->priv->fcascade->load(FACE_CONF_FILE) )
     {
       std::cerr << "ERROR: Could not load face cascade" << std::endl;
       return -1;
     }
   
-  if (!mcascade.load(MOUTH_CONF_FILE))
+  if (!mouth_detect->priv->mcascade->load(MOUTH_CONF_FILE))
     {
       std::cerr << "ERROR: Could not load mouth cascade" << std::endl;
       return -1;
@@ -838,7 +842,7 @@ kms_mouth_detect_process_frame(KmsMouthDetect *mouth_detect,int width,int height
 	  resize( gray, smallImg, smallImg.size(), 0, 0, INTER_LINEAR );
 	  equalizeHist( smallImg, smallImg );
 	  faces->clear();
-	  fcascade.detectMultiScale( smallImg, *faces,
+    mouth_detect->priv->fcascade->detectMultiScale( smallImg, *faces,
 				     MULTI_SCALE_FACTOR(mouth_detect->priv->scale_factor), 2, 
 				     0 | CV_HAAR_SCALE_IMAGE,
 				     Size(3, 3) );
@@ -863,7 +867,7 @@ kms_mouth_detect_process_frame(KmsMouthDetect *mouth_detect,int width,int height
 	  mouthROI = mouth_frame(r_aux);
 	  /*In this case, the scale factor is fixed, values higher than 1.1 work much worse*/
 
-	  mcascade.detectMultiScale( mouthROI, *mouth,
+    mouth_detect->priv->mcascade->detectMultiScale( mouthROI, *mouth,
 				     MOUTH_SCALE_FACTOR, 3, 0
 				     |CV_HAAR_FIND_BIGGEST_OBJECT,
 				     Size(1,1));
@@ -1032,11 +1036,9 @@ kms_mouth_detect_init (KmsMouthDetect *
   mouth_detect->priv->server_events=SERVER_EVENTS;
   mouth_detect->priv->events_ms=EVENTS_MS;
 
-  if (fcascade.empty())
-    if (kms_mouth_detect_init_cascade() < 0)
-      std::cout << "Error: init cascade" << std::endl;
+  kms_mouth_detect_init_cascade(mouth_detect);
 
-  if (ret != 0)
+  if (mouth_detect->priv->fcascade == NULL)
     GST_DEBUG ("Error reading the haar cascade configuration file");
 
   g_rec_mutex_init(&mouth_detect->priv->mutex);
