@@ -16,6 +16,7 @@
 #include <commons/kms-core-marshal.h>
 #include <libsoup/soup.h>
 #include <ftw.h>
+#include <memory>
 
 #define PLUGIN_NAME "nubofacedetector"
 #define DEFAULT_FILTER_TYPE (KmsFaceDetectType)0
@@ -106,7 +107,7 @@ struct _KmsFaceDetectPrivate {
   int server_events;
   int events_ms;
   double time_events_ms;
-  CascadeClassifier *cascade;
+  std::shared_ptr <CascadeClassifier> cascade;
   GstClockTime dts,pts;
   GQueue *events_queue;
   GRecMutex mutex;
@@ -140,7 +141,6 @@ G_DEFINE_TYPE_WITH_CODE (KmsFaceDetect, kms_face_detect,
 
 #define MULTI_SCALE_FACTOR(scale) (1 + scale*1.0/100)
 
-static CascadeClassifier cascade;
 const Scalar BaseFace::colors[]={ CV_RGB(0,0,255),
 				  CV_RGB(0,128,255),
 				  CV_RGB(0,255,255),
@@ -160,16 +160,18 @@ string toString(const T& value)
 }
 
 static int
-kms_face_detect_init_cascade()
+kms_face_detect_init_cascade(KmsFaceDetect *face_detect)
 {
-  if (!cascade.load(HAAR_CONF_FILE))
-    {
-      fprintf(stderr,"Error charging cascade");
-      return -1;
-    }
+  face_detect->priv->cascade = std::make_shared<CascadeClassifier>();
 
-  if (cascade.empty())
-    fprintf(stderr,"****CASCADE IS EMPTY***********");
+  if (!face_detect->priv->cascade->load(HAAR_CONF_FILE))
+  {
+    GST_ERROR ("Error charging cascade");
+    return -1;
+  }
+
+  if (face_detect->priv->cascade->empty())
+    GST_ERROR ("****CASCADE IS EMPTY***********");
 
   return 0;
 }
@@ -804,7 +806,7 @@ kms_face_detect_process_frame(KmsFaceDetect *face_detect,int width,int height,do
       cvtColor( aux_img, img_gray, CV_BGR2GRAY );
       equalizeHist( img_gray, img_gray );
       
-      cascade.detectMultiScale(img_gray,*current_faces,
+      face_detect->priv->cascade->detectMultiScale(img_gray,*current_faces,
 			       MULTI_SCALE_FACTOR(face_detect->priv->scale_factor),
 			       3,0,Size(img_gray.cols/20,img_gray.rows/20 ));
 
@@ -1001,15 +1003,10 @@ kms_face_detect_init (KmsFaceDetect *
 					    face_detect->priv->cv_mem_storage);
   face_detect->priv->show_faces = 0;
   
-  if (cascade.empty())
-    if (kms_face_detect_init_cascade() < 0)
-      std::cout << "Error: init cascade" << std::endl;
-  
-  face_detect->priv->cascade = & cascade;
-  
-  
-  if (ret != 0)
-    GST_DEBUG ("Error reading the haar cascade configuration file");
+  kms_face_detect_init_cascade(face_detect);
+
+  if (face_detect->priv->cascade == NULL)
+    GST_ERROR ("Error reading the haar cascade configuration file");
 
   g_rec_mutex_init(&face_detect->priv->mutex);
 	
