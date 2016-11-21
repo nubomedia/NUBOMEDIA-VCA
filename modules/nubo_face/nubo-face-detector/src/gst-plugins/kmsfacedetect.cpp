@@ -266,10 +266,13 @@ static gboolean kms_face_detect_sink_events(GstBaseTransform * trans, GstEvent *
       break;
     }
   default:
+    KMS_FACE_DETECT_LOCK (face);
+    GST_BASE_TRANSFORM_CLASS (kms_face_detect_parent_class)->sink_event (trans, event);
+    KMS_FACE_DETECT_UNLOCK (face);
     break;
   }
   //ret = gst_pad_push_event (trans->srcpad, event);
-  ret=  gst_pad_event_default (trans->sinkpad, GST_OBJECT (trans), event);
+  //ret=  gst_pad_event_default (trans->sinkpad, GST_OBJECT (trans), event);
 
   return ret;
 }
@@ -755,8 +758,34 @@ kms_face_detect_process_frame(KmsFaceDetect *face_detect,int width,int height,do
 {
   Mat img (face_detect->priv->img_orig);
   Scalar color;
-  Mat aux_img (cvRound (img.rows/scale), cvRound(img.cols/scale), CV_8UC3 );
-  Mat img_gray(cvRound (img.rows/scale), cvRound(img.cols/scale), CV_8UC1 );
+  Mat aux_img;
+  Mat img_gray;
+
+  try {
+    int rows_size = img.rows;
+    int cols_size = img.cols;
+
+    if (cvRound (img.rows/scale) > 0) {
+      rows_size = cvRound (img.rows/scale);
+    } else {
+      scale =1;
+    }
+
+    if (cvRound (img.cols/scale) > 0) {
+      cols_size = cvRound (img.cols/scale);
+    } else {
+      scale =1;
+    }
+
+    aux_img.create (rows_size, cols_size, CV_8UC3 );
+    img_gray.create (rows_size, cols_size, CV_8UC1 );
+  } catch (cv::Exception e) {
+    GST_ERROR ("Size error");
+    cvReleaseImage (&face_detect->priv->img_orig);
+    face_detect->priv->img_orig = NULL;
+    return;
+  }
+
   Faces *faces = face_detect->priv->faces_detected;
   vector<Rect> *current_faces= new vector<Rect>;
 
@@ -807,10 +836,10 @@ kms_face_detect_process_frame(KmsFaceDetect *face_detect,int width,int height,do
       for (vector<Rect>::iterator it = faces_vector.begin() ; it != faces_vector.end(); ++it) {
 
         kms_face_detect_display_detections_overlay_img (face_detect,
-                                                        ((*it).x)*face_detect->priv->scale,
-                                                        ((*it).y)*face_detect->priv->scale,
-                                                        ((*it).width)*face_detect->priv->scale,
-                                                        ((*it).height)*face_detect->priv->scale);
+                                                        ((*it).x)*scale,
+                                                        ((*it).y)*scale,
+                                                        ((*it).width)*scale,
+                                                        ((*it).height)*scale);
       }
     } else {
       faces->draw(face_detect->priv->img_orig,scale,face_detect->priv->num_iter);
@@ -836,12 +865,11 @@ kms_face_detect_transform_frame_ip (GstVideoFilter *filter,
   //struct timeval  start,end;
 
   //gettimeofday(&start,NULL);
-
   gst_buffer_map (frame->buffer, &info, GST_MAP_READ);	
   // setting up images
-  kms_face_detect_conf_images (face_detect, frame, info);
 
   KMS_FACE_DETECT_LOCK (face_detect);
+  kms_face_detect_conf_images (face_detect, frame, info);
 
   scale = face_detect->priv->scale;
   width = face_detect->priv->img_width;
