@@ -18,6 +18,7 @@
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <memory>
 
 #define PLUGIN_NAME "nuboeyedetector"
 #define FACE_WIDTH 160
@@ -127,6 +128,10 @@ struct _KmsEyeDetectPrivate {
   IplImage *costume;
   gboolean dir_created;
   gchar *dir;
+
+  std::shared_ptr <CascadeClassifier> fcascade;
+  std::shared_ptr <CascadeClassifier> eyes_rcascade;
+  std::shared_ptr <CascadeClassifier> eyes_lcascade;
 };
 
 /* pad templates */
@@ -147,11 +152,6 @@ G_DEFINE_TYPE_WITH_CODE (KmsEyeDetect, kms_eye_detect,
 
 #define MULTI_SCALE_FACTOR(scale) (1 + scale*1.0/100)
 
-static CascadeClassifier fcascade;
-static CascadeClassifier eyes_rcascade;
-static CascadeClassifier eyes_lcascade;
-
-
 template<typename T>
 string toString(const T& value)
 {
@@ -162,21 +162,25 @@ string toString(const T& value)
 
 
 static int
-kms_eye_detect_init_cascade()
+kms_eye_detect_init_cascade(KmsEyeDetect *eye_detect)
 {
-  if (!fcascade.load(FACE_CONF_FILE) )
+  eye_detect->priv->fcascade = std::make_shared<CascadeClassifier>();
+  eye_detect->priv->eyes_lcascade = std::make_shared<CascadeClassifier>();
+  eye_detect->priv->eyes_rcascade = std::make_shared<CascadeClassifier>();
+
+  if (!eye_detect->priv->fcascade->load(FACE_CONF_FILE) )
     {
       std::cerr << "ERROR: Could not load face cascade" << std::endl;
       return -1;
     }
   
-  if (!eyes_rcascade.load(EYE_RIGHT_CONF_FILE))
+  if (!eye_detect->priv->eyes_rcascade->load(EYE_RIGHT_CONF_FILE))
     {
       std::cerr << "ERROR: Could not load eye right cascade" << std::endl;
       return -1;
     }
   
-  if (!eyes_lcascade.load(EYE_LEFT_CONF_FILE))
+  if (!eye_detect->priv->eyes_lcascade->load(EYE_LEFT_CONF_FILE))
     {
       std::cerr << "ERROR: Could not load eye left cascade" << std::endl;
       return -1;
@@ -951,7 +955,7 @@ kms_eye_detect_process_frame(KmsEyeDetect *eye_detect,int width,int height,doubl
 	{      
 	  resize(frame_gray,f_faces,f_faces.size(),0,0,INTER_LINEAR);
 	  faces->clear();
-	  fcascade.detectMultiScale(f_faces, *faces, 
+    eye_detect->priv->fcascade->detectMultiScale(f_faces, *faces,
 				    MULTI_SCALE_FACTOR(eye_detect->priv->scale_factor),
 				    3, 0, Size(30, 30));   //1.2
 	}
@@ -984,7 +988,7 @@ kms_eye_detect_process_frame(KmsEyeDetect *eye_detect,int width,int height,doubl
 	  Mat faceROI = eye_frame(f_aux_r);            
 	  //-- In each face, detect eyes. The pointed obtained are related to the ROI
 	  if (eye_r.size() > 0 ) eye_r.clear();
-	  eyes_rcascade.detectMultiScale( faceROI, eye_r,EYE_SCALE_FACTOR , 2, 
+    eye_detect->priv->eyes_rcascade->detectMultiScale( faceROI, eye_r,EYE_SCALE_FACTOR , 2,
 					  0 |CASCADE_SCALE_IMAGE, 
 					  Size(20, 20));	  	    
 
@@ -996,7 +1000,7 @@ kms_eye_detect_process_frame(KmsEyeDetect *eye_detect,int width,int height,doubl
 	  
 	  faceROI = eye_frame(f_aux_l); 
 	  
-	  eyes_lcascade.detectMultiScale( faceROI, eye_l, EYE_SCALE_FACTOR,  2,
+    eye_detect->priv->eyes_lcascade->detectMultiScale( faceROI, eye_l, EYE_SCALE_FACTOR,  2,
 					  0 |CASCADE_SCALE_IMAGE, 
 					  Size(20, 20) );
 
@@ -1231,11 +1235,8 @@ kms_eye_detect_init (KmsEyeDetect *
   eye_detect->priv->events_ms =EVENTS_MS;
 
 
-  if (fcascade.empty())
-    if (kms_eye_detect_init_cascade() < 0)
-      std::cout << "Error: init cascade" << std::endl;
-
-  if (ret != 0)
+  kms_eye_detect_init_cascade(eye_detect);
+  if (eye_detect->priv->fcascade == NULL)
     GST_DEBUG ("Error reading the haar cascade configuration file");
 
   g_rec_mutex_init(&eye_detect->priv->mutex);
