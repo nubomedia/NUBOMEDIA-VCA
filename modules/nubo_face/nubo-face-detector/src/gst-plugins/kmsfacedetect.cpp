@@ -16,6 +16,7 @@
 #include <commons/kms-core-marshal.h>
 #include <libsoup/soup.h>
 #include <ftw.h>
+#include <memory>
 
 #define PLUGIN_NAME "nubofacedetector"
 #define DEFAULT_FILTER_TYPE (KmsFaceDetectType)0
@@ -106,7 +107,7 @@ struct _KmsFaceDetectPrivate {
   int server_events;
   int events_ms;
   double time_events_ms;
-  CascadeClassifier *cascade;
+  std::shared_ptr <CascadeClassifier> cascade;
   GstClockTime dts,pts;
   GQueue *events_queue;
   GRecMutex mutex;
@@ -140,7 +141,6 @@ G_DEFINE_TYPE_WITH_CODE (KmsFaceDetect, kms_face_detect,
 
 #define MULTI_SCALE_FACTOR(scale) (1 + scale*1.0/100)
 
-static CascadeClassifier cascade;
 const Scalar BaseFace::colors[]={ CV_RGB(0,0,255),
 				  CV_RGB(0,128,255),
 				  CV_RGB(0,255,255),
@@ -160,16 +160,18 @@ string toString(const T& value)
 }
 
 static int
-kms_face_detect_init_cascade()
+kms_face_detect_init_cascade(KmsFaceDetect *face_detect)
 {
-  if (!cascade.load(HAAR_CONF_FILE))
-    {
-      fprintf(stderr,"Error charging cascade");
-      return -1;
-    }
+  face_detect->priv->cascade = std::make_shared<CascadeClassifier>();
 
-  if (cascade.empty())
-    fprintf(stderr,"****CASCADE IS EMPTY***********");
+  if (!face_detect->priv->cascade->load(HAAR_CONF_FILE))
+  {
+    GST_ERROR ("Error charging cascade");
+    return -1;
+  }
+
+  if (face_detect->priv->cascade->empty())
+    GST_ERROR ("****CASCADE IS EMPTY***********");
 
   return 0;
 }
@@ -266,10 +268,13 @@ static gboolean kms_face_detect_sink_events(GstBaseTransform * trans, GstEvent *
       break;
     }
   default:
+    KMS_FACE_DETECT_LOCK (face);
+    GST_BASE_TRANSFORM_CLASS (kms_face_detect_parent_class)->sink_event (trans, event);
+    KMS_FACE_DETECT_UNLOCK (face);
     break;
   }
   //ret = gst_pad_push_event (trans->srcpad, event);
-  ret=  gst_pad_event_default (trans->sinkpad, GST_OBJECT (trans), event);
+  //ret=  gst_pad_event_default (trans->sinkpad, GST_OBJECT (trans), event);
 
   return ret;
 }
@@ -755,8 +760,34 @@ kms_face_detect_process_frame(KmsFaceDetect *face_detect,int width,int height,do
 {
   Mat img (face_detect->priv->img_orig);
   Scalar color;
-  Mat aux_img (cvRound (img.rows/scale), cvRound(img.cols/scale), CV_8UC3 );
-  Mat img_gray(cvRound (img.rows/scale), cvRound(img.cols/scale), CV_8UC1 );
+  Mat aux_img;
+  Mat img_gray;
+
+  try {
+    int rows_size = img.rows;
+    int cols_size = img.cols;
+
+    if (cvRound (img.rows/scale) > 0) {
+      rows_size = cvRound (img.rows/scale);
+    } else {
+      scale =1;
+    }
+
+    if (cvRound (img.cols/scale) > 0) {
+      cols_size = cvRound (img.cols/scale);
+    } else {
+      scale =1;
+    }
+
+    aux_img.create (rows_size, cols_size, CV_8UC3 );
+    img_gray.create (rows_size, cols_size, CV_8UC1 );
+  } catch (cv::Exception e) {
+    GST_ERROR ("Size error");
+    cvReleaseImage (&face_detect->priv->img_orig);
+    face_detect->priv->img_orig = NULL;
+    return;
+  }
+
   Faces *faces = face_detect->priv->faces_detected;
   vector<Rect> *current_faces= new vector<Rect>;
 
@@ -775,7 +806,7 @@ kms_face_detect_process_frame(KmsFaceDetect *face_detect,int width,int height,do
       cvtColor( aux_img, img_gray, CV_BGR2GRAY );
       equalizeHist( img_gray, img_gray );
       
-      cascade.detectMultiScale(img_gray,*current_faces,
+      face_detect->priv->cascade->detectMultiScale(img_gray,*current_faces,
 			       MULTI_SCALE_FACTOR(face_detect->priv->scale_factor),
 			       3,0,Size(img_gray.cols/20,img_gray.rows/20 ));
 
@@ -807,10 +838,10 @@ kms_face_detect_process_frame(KmsFaceDetect *face_detect,int width,int height,do
       for (vector<Rect>::iterator it = faces_vector.begin() ; it != faces_vector.end(); ++it) {
 
         kms_face_detect_display_detections_overlay_img (face_detect,
-                                                        ((*it).x)*face_detect->priv->scale,
-                                                        ((*it).y)*face_detect->priv->scale,
-                                                        ((*it).width)*face_detect->priv->scale,
-                                                        ((*it).height)*face_detect->priv->scale);
+                                                        ((*it).x)*scale,
+                                                        ((*it).y)*scale,
+                                                        ((*it).width)*scale,
+                                                        ((*it).height)*scale);
       }
     } else {
       faces->draw(face_detect->priv->img_orig,scale,face_detect->priv->num_iter);
@@ -836,12 +867,11 @@ kms_face_detect_transform_frame_ip (GstVideoFilter *filter,
   //struct timeval  start,end;
 
   //gettimeofday(&start,NULL);
-
   gst_buffer_map (frame->buffer, &info, GST_MAP_READ);	
   // setting up images
-  kms_face_detect_conf_images (face_detect, frame, info);
 
   KMS_FACE_DETECT_LOCK (face_detect);
+  kms_face_detect_conf_images (face_detect, frame, info);
 
   scale = face_detect->priv->scale;
   width = face_detect->priv->img_width;
@@ -973,15 +1003,10 @@ kms_face_detect_init (KmsFaceDetect *
 					    face_detect->priv->cv_mem_storage);
   face_detect->priv->show_faces = 0;
   
-  if (cascade.empty())
-    if (kms_face_detect_init_cascade() < 0)
-      std::cout << "Error: init cascade" << std::endl;
-  
-  face_detect->priv->cascade = & cascade;
-  
-  
-  if (ret != 0)
-    GST_DEBUG ("Error reading the haar cascade configuration file");
+  kms_face_detect_init_cascade(face_detect);
+
+  if (face_detect->priv->cascade == NULL)
+    GST_ERROR ("Error reading the haar cascade configuration file");
 
   g_rec_mutex_init(&face_detect->priv->mutex);
 	

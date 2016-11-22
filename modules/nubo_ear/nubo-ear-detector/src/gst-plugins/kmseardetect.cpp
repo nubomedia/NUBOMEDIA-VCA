@@ -19,6 +19,7 @@
 
 #include <libsoup/soup.h>
 #include <ftw.h>
+#include <memory>
 
 #define PLUGIN_NAME "nuboeardetector"
 #define FACE_WIDTH 160
@@ -131,6 +132,10 @@ struct _KmsEarDetectPrivate {
   IplImage *costume;
   gboolean dir_created;
   gchar *dir;
+
+  std::shared_ptr <CascadeClassifier> fcascade;
+  std::shared_ptr <CascadeClassifier> lecascade;
+  std::shared_ptr <CascadeClassifier> recascade;
 };
 
 /* pad templates */
@@ -150,10 +155,6 @@ G_DEFINE_TYPE_WITH_CODE (KmsEarDetect, kms_ear_detect,
 
 #define MULTI_SCALE_FACTOR(scale) (1 + scale*1.0/100)
 
-static CascadeClassifier fcascade;
-static CascadeClassifier lecascade;
-static CascadeClassifier recascade;
-
 template<typename T>
 string toString(const T& value)
 {
@@ -163,22 +164,26 @@ string toString(const T& value)
 }
 
 static int
-kms_ear_detect_init_cascade()
+kms_ear_detect_init_cascade(KmsEarDetect *ear_detect)
 {
-  if (!fcascade.load(FACE_CONF_FILE) )
+  ear_detect->priv->fcascade = std::make_shared<CascadeClassifier>();
+  ear_detect->priv->lecascade = std::make_shared<CascadeClassifier>();
+  ear_detect->priv->recascade = std::make_shared<CascadeClassifier>();
+
+  if (!ear_detect->priv->fcascade->load(FACE_CONF_FILE) )
     {
       std::cerr << "ERROR: Could not load face cascade" << std::endl;
       return -1;
     }
   
-  if (!lecascade.load(LEAR_CONF_FILE))
+  if (!ear_detect->priv->lecascade->load(LEAR_CONF_FILE))
     {
       std::cerr << "ERROR: Could not load ear cascade" << std::endl;
       return -1;
     }
 
   
-  if (!recascade.load(REAR_CONF_FILE))
+  if (!ear_detect->priv->recascade->load(REAR_CONF_FILE))
     {
       std::cerr << "ERROR: Could not load ear cascade" << std::endl;
       return -1;
@@ -637,7 +642,7 @@ kms_ear_detect_get_property (GObject *object, guint property_id,
 
 
 static void kms_ear_detect_find_ears(KmsEarDetect *ear_detect, const Mat& face_img,
-				     const Mat& ear_img,CascadeClassifier *ear_cascade,
+             const Mat& ear_img, std::shared_ptr <CascadeClassifier> ear_cascade,
 				     double scale_f2e,double scale_e2o, 
 				     double scale_f2o,int face_cols, int side)
 {
@@ -648,7 +653,7 @@ static void kms_ear_detect_find_ears(KmsEarDetect *ear_detect, const Mat& face_i
 
   
   //detecting faces
-  fcascade.detectMultiScale( face_img, *faces,
+  ear_detect->priv->fcascade->detectMultiScale( face_img, *faces,
 			     MULTI_SCALE_FACTOR(ear_detect->priv->scale_factor), 2,
 			     0 |CV_HAAR_SCALE_IMAGE,
 			     Size(3, 3) );
@@ -788,12 +793,12 @@ static void kms_ear_detect_process_frame(KmsEarDetect *ear_detect,int width,int 
       equalizeHist( ear_frame, ear_frame);
       
 
-      kms_ear_detect_find_ears(ear_detect,leftImg,ear_frame,&lecascade,
+      kms_ear_detect_find_ears(ear_detect,leftImg,ear_frame,ear_detect->priv->lecascade,
 			       scale_f2e,scale_e2o,scale_f2o,
 			       leftImg.cols,LEFT_SIDE);
 
       flip(leftImg,rightImg,1);//flip around y-axis
-      kms_ear_detect_find_ears(ear_detect,rightImg,ear_frame,&recascade,
+      kms_ear_detect_find_ears(ear_detect,rightImg,ear_frame,ear_detect->priv->recascade,
 			       scale_f2e,scale_e2o,scale_f2o,
 			       leftImg.cols,RIGHT_SIDE);
 
@@ -950,11 +955,8 @@ kms_ear_detect_init (KmsEarDetect *
   ear_detect->priv->width_to_process=EAR_WIDTH;
   ear_detect->priv->frames_with_no_detection=0;
 
-  if (fcascade.empty())
-    if (kms_ear_detect_init_cascade() < 0)      
-      GST_DEBUG("Error: init cascade");
-  
-  if (ret != 0)
+  kms_ear_detect_init_cascade (ear_detect);
+  if (ear_detect->priv->recascade == NULL)
     GST_DEBUG ("Error reading the haar cascade configuration file");
   
   g_rec_mutex_init(&ear_detect->priv->mutex);
